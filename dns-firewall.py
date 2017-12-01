@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
-dns-firewall.py: v1.01 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+dns-firewall.py: v1.02 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch>
@@ -139,27 +139,7 @@ def operate(
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
-        if check_name(name, blacklist, 'black'):
-            msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A,
-                             RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
-            if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
-                == RR_TYPE_ANY:
-                msg.answer.append('%s 10 IN A %s'
-                                  % (qstate.qinfo.qname_str,
-                                  intercept_address))
-                log_info('DNS_FIREWALL: ' + name + ' REDIRECT ' + intercept_address)
-
-            if not msg.set_return_msg(qstate):
-                qstate.ext_state[id] = MODULE_ERROR
-                return True
-
-            qstate.return_msg.rep.security = 2
-
-            qstate.return_rcode = RCODE_NOERROR
-            qstate.ext_state[id] = MODULE_FINISHED
-            return True
-
-        if check_regex(name, rblacklist, 'black'):
+        if check_name(name, blacklist, 'black') or check_regex(name, rblacklist, 'black'):
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A,
                              RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
             if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
