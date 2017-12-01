@@ -17,7 +17,7 @@
 ^(.*[\.\-])*ad(am|banner|bureau|click|dynamo|farm|hese|im[a]*g[e]*|ition|just|k2|load|log|media|ma(n|nager|x)|ne(t[a-z]+|xus)|renaline|rotat(e|or)|script|sense|s[e]*r(v|ve|ver|vi(ce|ng))|stat|stream)[sxz]*[0-9]*[\.\-]
 ^(.*[\.\-])*ad([v]*server[a-z]*|shuffle|sl|sy(s|stem)|test|(v|ve(r|rt|rtis(e|er|ing)))|trac(k|king|ker)|wise|word)[sxz]*[0-9]*[\.\-]
 ^(banner[a-z]*|open[-]*(ad|x)|page[-]*ad|(secure[-]*)*pub[-]*ad|smart[-]*ad[s]*([-]*server)*|unityad)[sz]*[0-9]*[\.\-]
-^(.*[\.\-])*(affiliate|(anal|local)[iy](s[iy]s|ti[ck])|click|clk|cooki(e|ex)|cnt|coun(t[y]*|t[e]*[dr])|datacollect|hit|(amp|[s]*)metr[iy][ck]|partner|ping|pixel|sta(t|tisti[ck])|tag|(web|[uv]*)stat)[sz]*[0-9]*[\.\-]
+^(.*[\.\-])*(affiliate|(anal|local)[iy](s[iy]s|ti[ck])|click|clk|cooki(e|ex)|cnt|coun(t[y]*|t[e]*[dr])|datacollect|hit|(amp|[s]*)metr[iy][ck]|open[-]*(ad|x)|partner|ping|pixel|sta(t|tisti[ck])|tag|(web|[uv]*)stat)[sz]*[0-9]*[\.\-]
 ^(.*[\.\-])*(telemetry|(evil|[s]*)trac(k|king|ker)|[s]*trk|utm|video[-]*stat)[sz]*[0-9]*[\.\-]
 ^(creatives|gcirm[0-9]*|marketing|oa(s|scentral)|ox-d|prom(o|otion)|.*servedby|syndication)[\.\-]
 ^[a-z]\.([0-9]+|ad|click)
@@ -29,10 +29,10 @@
 ^(.*\.)*(o0bc|2mdn|2o7|302br|adtech([-]*[a-z]+)*|amazon[-]*adsystem|atwola|bkrtx|bluekai|chartbeat|crwdcntrl|d(e|o)mdex|effectivemeasure|falkag|fwmrm|gemius)\.
 ^(.*\.)*(hotjar|imrworldwide|intellitxt|lijit|mixpanel|ms[-]*adcenter|outbrain|petrovka|pixel|syndication|rubiconproject|taboola|usergrid|visualrevenue)\.
 [^\.]*xn--[^\.]*
-(porn|xxx)
-(casino|betting|lott(ery|o)|gam(e[rs]|ing|bl(e|ing))|sweepstake|poker)
+^.*(nsfw|porn|xxx).*$
+^.*(casino|betting|lott(ery|o)|gam(e[rs]|ing|bl(e|ing))|sweepstake|poker).*$
 ^(.*[\.\-])*(advert|banner|beacon|cash|click[y]*|coin|count|megavolt|ms[-]*edge|(omni|over)ture|pop(cash|check|test|under|up)|tracker)
-(advert|banner|beacon|cash|click[y]|coin|count|megavolt|msedge|(omni|over)ture|pop(cash|check|test|under|up)|tracker)[\.\-]
+(advert|banner|beacon|cash|click[y]*|coin|count|megavolt|msedge|(omni|over)ture|pop(cash|check|test|under|up)|tracker)[\.\-]
 ^a\.
 ^(.*\.)*[0-9]{2,3}[a-z]+\.
 db[0-9]sch[0-9]+\.wns\.windows\.com$
