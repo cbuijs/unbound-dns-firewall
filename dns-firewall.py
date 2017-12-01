@@ -47,6 +47,7 @@ Install and configure:
 '''
 
 import re
+import os
 
 blacklist = set()
 whitelist = set()
@@ -65,7 +66,7 @@ def check_name(name, xlist, bw):
     fullname = name
     while True:
         if name in xlist:
-	    log_info('DNS-FIREWALL: ' + fullname + ' matched against ' + bw + 'list-entry ' + name)
+	    log_info('DNS-FIREWALL: \"' + fullname + '\" matched against ' + bw + 'list-entry \"' + name + '\"')
             return True
         elif name.find('.') == -1:
             return False
@@ -76,12 +77,12 @@ def check_name(name, xlist, bw):
 def check_regex(name, xlist, bw):
     for regex in xlist:
         if re.match(regex, name, re.I | re.M):
-	    log_info('DNS-FIREWALL: ' + name + ' matched against ' + bw + '-regex ' + regex)
+	    log_info('DNS-FIREWALL: \"' + name + '\" matched against ' + bw + '-regex \"' + regex + '\"')
             return True
 
 
 def read_list(name, xlist):
-    log_info('DNS-FIREWALL: Reading %s' % name)
+    log_info('DNS-FIREWALL: Reading ' + name)
     try:
         with open(name, 'r') as f:
             for line in f:
@@ -129,13 +130,8 @@ def operate(
 
         # log_info('DNS_FIREWALL: Checking ' + name)
 
-        if check_name(name, whitelist, 'white'):
-            log_info('DNS_FIREWALL: ' + name + ' PASSTHRU')
-            qstate.ext_state[id] = MODULE_WAIT_MODULE
-            return True
-
-        if check_regex(name, rwhitelist, 'white'):
-            log_info('DNS_FIREWALL: ' + name + ' PASSTHRU')
+        if check_name(name, whitelist, 'white') or check_regex(name, rwhitelist, 'white'):
+            log_info('DNS_FIREWALL: \"' + name + '\" PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
@@ -147,7 +143,7 @@ def operate(
                 msg.answer.append('%s 10 IN A %s'
                                   % (qstate.qinfo.qname_str,
                                   intercept_address))
-                log_info('DNS_FIREWALL: ' + name + ' REDIRECT ' + intercept_address)
+                log_info('DNS_FIREWALL: \"' + name + '\" REDIRECT to ' + intercept_address)
 
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
