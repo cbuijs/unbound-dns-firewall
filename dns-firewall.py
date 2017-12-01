@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
-dns-firewall.py: v1.0 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+dns-firewall.py: v1.01 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch>
@@ -61,9 +61,11 @@ rblacklist_file = '/etc/unbound/rblacklist'
 rwhitelist_file = '/etc/unbound/rwhitelist'
 
 
-def check_name(name, xlist):
+def check_name(name, xlist, bw):
+    fullname = name
     while True:
         if name in xlist:
+	    log_info('DNS-FIREWALL: ' + fullname + ' matched against ' + bw + 'list-entry ' + name)
             return True
         elif name.find('.') == -1:
             return False
@@ -71,9 +73,10 @@ def check_name(name, xlist):
             name = name[name.find('.') + 1:]
 
 
-def check_regex(name, xlist):
+def check_regex(name, xlist, bw):
     for regex in xlist:
         if re.match(regex, name, re.I | re.M):
+	    log_info('DNS-FIREWALL: ' + name + ' matched against ' + bw + '-regex ' + regex)
             return True
 
 
@@ -85,7 +88,7 @@ def read_list(name, xlist):
 		if not line.startswith("#"):
                     xlist.add(line.rstrip())
     except IOError:
-        log_info('DNS-FIREWALL: Unable to open %s' % name)
+        log_info('DNS-FIREWALL: Unable to open ' + name)
 
 
 def init(id, cfg):
@@ -124,21 +127,19 @@ def operate(
 
         name = qstate.qinfo.qname_str.rstrip('.')
 
-        # log_info("DNS_FIREWALL: Checking "+name)
+        # log_info('DNS_FIREWALL: Checking ' + name)
 
-        if check_name(name, whitelist):
-            log_info('DNS_FIREWALL: ' + name + ' domain-whitelisted')
+        if check_name(name, whitelist, 'white'):
+            log_info('DNS_FIREWALL: ' + name + ' PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
-        if check_regex(name, rwhitelist):
-            log_info('DNS_FIREWALL: ' + name + ' regex-whitelisted')
+        if check_regex(name, rwhitelist, 'white'):
+            log_info('DNS_FIREWALL: ' + name + ' PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
-        if check_name(name, blacklist):
-            log_info('DNS_FIREWALL: ' + name + ' domain-blacklisted')
-
+        if check_name(name, blacklist, 'black'):
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A,
                              RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
             if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
@@ -146,6 +147,7 @@ def operate(
                 msg.answer.append('%s 10 IN A %s'
                                   % (qstate.qinfo.qname_str,
                                   intercept_address))
+                log_info('DNS_FIREWALL: ' + name + ' REDIRECT ' + intercept_address)
 
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
@@ -157,9 +159,7 @@ def operate(
             qstate.ext_state[id] = MODULE_FINISHED
             return True
 
-        if check_regex(name, rblacklist):
-            log_info('DNS_FIREWALL: ' + name + ' regex-blacklisted')
-
+        if check_regex(name, rblacklist, 'black'):
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A,
                              RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
             if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
@@ -167,6 +167,7 @@ def operate(
                 msg.answer.append('%s 10 IN A %s'
                                   % (qstate.qinfo.qname_str,
                                   intercept_address))
+                log_info('DNS_FIREWALL: ' + name + ' REDIRECT ' + intercept_address)
 
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
@@ -178,13 +179,12 @@ def operate(
             qstate.ext_state[id] = MODULE_FINISHED
             return True
         else:
-            # log_info('DNS_FIREWALL: ' + name + ' neutral')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
     if event == MODULE_EVENT_MODDONE:
 
-        # log_info("pythonmod: iterator module done")
+        # log_info('pythonmod: iterator module done')
 
         qstate.ext_state[id] = MODULE_FINISHED
         return True
