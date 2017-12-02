@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
-dns-firewall.py: v1.02 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+dns-firewall.py: v1.04 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch>
@@ -12,15 +12,18 @@ DNS filtering extension for the unbound DNS resolver.
 
 At start, it reads the following files:
 
-- blacklist  : contains a domain per line to block.
-- rblacklist : contains a regex per line to match a domain to block.
-- whitelist  : contains a domain per line to pass through.
-- rwhitelist : contains a regex per line to match a domain to pass through.
+- domain.blacklist  : contains a domain per line to block.
+- regex.blacklist   : contains a regex per line to match a domain to block.
+- domain.whitelist  : contains a domain per line to pass through.
+- regex.whitelist   : contains a regex per line to match a domain to pass through.
 
 For every query sent to unbound, the extension checks if the name is in the
 lists and matches. If it is in the whitelist, processing continues
 as usual (i.e. unbound will resolve it). If it is in the blacklist, unbound
-stops resolution and returns the IP address configured in intercept_address.
+stops resolution and returns the IP address configured in intercept_address,
+or NXDOMAIN response if left empty.
+
+Note: The whitelist has precedence over blacklist.
 
 The whitelist and blacklist domain matching is done with every requested domain
 and includes it subdomains.
@@ -47,19 +50,19 @@ Install and configure:
 '''
 
 import re
-import os
 
 blacklist = set()
 whitelist = set()
 rblacklist = set()
 rwhitelist = set()
 
+# IP Address to redirect to, leave empty to generate NXDOMAIN
 intercept_address = '192.168.1.250'
 
-blacklist_file = '/etc/unbound/blacklist'
-whitelist_file = '/etc/unbound/whitelist'
-rblacklist_file = '/etc/unbound/rblacklist'
-rwhitelist_file = '/etc/unbound/rwhitelist'
+blacklist_file = '/etc/unbound/domain.blacklist'
+whitelist_file = '/etc/unbound/domain.whitelist'
+rblacklist_file = '/etc/unbound/regex.blacklist'
+rwhitelist_file = '/etc/unbound/regex.whitelist'
 
 
 def check_name(name, xlist, bw):
@@ -82,22 +85,27 @@ def check_regex(name, xlist, bw):
 
 
 def read_list(name, xlist):
-    log_info('DNS-FIREWALL: Reading ' + name)
+    log_info('DNS-FIREWALL: Reading file/list \"' + name + '\"')
     try:
         with open(name, 'r') as f:
             for line in f:
 		if not line.startswith("#"):
                     xlist.add(line.rstrip())
     except IOError:
-        log_info('DNS-FIREWALL: Unable to open ' + name)
+        log_info('DNS-FIREWALL: Unable to open file ' + name)
 
 
 def init(id, cfg):
-    log_info('DNS-FIREWALL: initializing')
+    log_info('DNS-FIREWALL: Initializing')
     read_list(whitelist_file, whitelist)
     read_list(blacklist_file, blacklist)
     read_list(rwhitelist_file, rwhitelist)
     read_list(rblacklist_file, rblacklist)
+    if len(intercept_address) == 0:
+        log_info('DNS_FIREWALL: Using NXDOMAIN response for matched queries')
+    else:
+        log_info('DNS_FIREWALL: Using \"' + intercept_address + '\" as response for matched queries')
+
     return True
 
 
@@ -138,20 +146,25 @@ def operate(
         if check_name(name, blacklist, 'black') or check_regex(name, rblacklist, 'black'):
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A,
                              RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
-            if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
-                == RR_TYPE_ANY:
-                msg.answer.append('%s 10 IN A %s'
-                                  % (qstate.qinfo.qname_str,
-                                  intercept_address))
-                log_info('DNS_FIREWALL: \"' + name + '\" REDIRECT to ' + intercept_address)
 
+            if len(intercept_address) == 0:
+                log_info('DNS_FIREWALL: \"' + name + '\" NXDOMAIN')
+                qstate.return_rcode = RCODE_NXDOMAIN
+            else:
+                if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
+                    == RR_TYPE_ANY:
+                    msg.answer.append('%s 10 IN A %s'
+                                      % (qstate.qinfo.qname_str,
+                                      intercept_address))
+                qstate.return_rcode = RCODE_NOERROR
+                log_info('DNS_FIREWALL: \"' + name + '\" REDIRECT to ' + intercept_address)
+            
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
                 return True
 
             qstate.return_msg.rep.security = 2
 
-            qstate.return_rcode = RCODE_NOERROR
             qstate.ext_state[id] = MODULE_FINISHED
             return True
         else:
