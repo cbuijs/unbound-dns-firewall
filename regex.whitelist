@@ -3,3 +3,4 @@
 ^gmail-(imap|pop|smtp-msa)\.l\.google\.com
 ^(imap|pop|smtp)\.gmail\.com$
 ^[^\.]+\.frutch$
+^.*-pa.googleapis.com$
