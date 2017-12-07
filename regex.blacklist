@@ -1,9 +1,4 @@
 ^(.*\.)*g00\.
-^[^\.]+$
-^.*[^a-zA-Z0-9\.\-].*$
-^([^\.]+\.){37,}$
-^([^\.]+){64,}$
-^.{254,}$
 ^(.*\.)*(ad|analytic[s]*|asia|bar|bid|biz|click|club|country|cricket|date|dclk|download|gdn|guru|i2p|info|kim|link|loan|men|mom|online|party|racing|ren|review|rocks|science|stream|study|tec(h|hnology)|top|trade|vip|work|win|xin|xyz)$
 ^(.*\.)*(do[ct]|p[op][ast]|pub|sld|vsd|x[lp][as])[ablmstx]{0,1}$
 ^(.*\.)*(csv|gz|pdf|tar|t[e]*xt|zip)$
