@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
-dns-firewall.py: v1.04 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+dns-firewall.py: v1.05 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch>
@@ -66,8 +66,10 @@ rwhitelist_file = '/etc/unbound/regex.whitelist'
 
 
 def check_name(name, xlist, bw):
+    #log_info('DNS_FIREWALL: Checking \"' + name + '\" against domain '+ bw + 'list')
     fullname = name
     while True:
+        #log_info('DNS-FIREWALL: Checking name \"' + name + '\"')
         if name in xlist:
 	    log_info('DNS-FIREWALL: \"' + fullname + '\" matched against ' + bw + 'list-entry \"' + name + '\"')
             return True
@@ -75,21 +77,23 @@ def check_name(name, xlist, bw):
             return False
         else:
             name = name[name.find('.') + 1:]
-
+    return False
 
 def check_regex(name, xlist, bw):
+    #log_info('DNS_FIREWALL: Checking \"' + name + '\" against regex '+ bw + 'list')
     for regex in xlist:
+        #log_info('DNS-FIREWALL: Checking regex \"' + regex + '\"')
         if re.match(regex, name, re.I | re.M):
 	    log_info('DNS-FIREWALL: \"' + name + '\" matched against ' + bw + '-regex \"' + regex + '\"')
             return True
-
+    return False
 
 def read_list(name, xlist):
     log_info('DNS-FIREWALL: Reading file/list \"' + name + '\"')
     try:
         with open(name, 'r') as f:
             for line in f:
-		if not line.startswith("#"):
+	        if not line.startswith("#"):
                     xlist.add(line.rstrip())
     except IOError:
         log_info('DNS-FIREWALL: Unable to open file ' + name)
@@ -136,19 +140,21 @@ def operate(
 
         name = qstate.qinfo.qname_str.rstrip('.')
 
-        # log_info('DNS_FIREWALL: Checking ' + name)
+        log_info('DNS_FIREWALL: Checking \"' + name + '\"')
 
+        #log_info('DNS_FIREWALL: Checking \"' + name + '\" against whitelists')
         if check_name(name, whitelist, 'white') or check_regex(name, rwhitelist, 'white'):
-            log_info('DNS_FIREWALL: \"' + name + '\" PASSTHRU')
+            log_info('DNS_FIREWALL: \"' + name + '\" is whitelisted, PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
+        #log_info('DNS_FIREWALL: Checking \"' + name + '\" against blacklists')
         if check_name(name, blacklist, 'black') or check_regex(name, rblacklist, 'black'):
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A,
                              RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
 
             if len(intercept_address) == 0:
-                log_info('DNS_FIREWALL: \"' + name + '\" NXDOMAIN')
+                log_info('DNS_FIREWALL: Blocked \"' + name + '\", generated NXDOMAIN')
                 qstate.return_rcode = RCODE_NXDOMAIN
             else:
                 if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype \
@@ -157,7 +163,7 @@ def operate(
                                       % (qstate.qinfo.qname_str,
                                       intercept_address))
                 qstate.return_rcode = RCODE_NOERROR
-                log_info('DNS_FIREWALL: \"' + name + '\" REDIRECT to ' + intercept_address)
+                log_info('DNS_FIREWALL: Blocked, \"' + name + '\", REDIRECTED to ' + intercept_address)
             
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
@@ -174,7 +180,6 @@ def operate(
     if event == MODULE_EVENT_MODDONE:
 
         # log_info('pythonmod: iterator module done')
-
         qstate.ext_state[id] = MODULE_FINISHED
         return True
 
