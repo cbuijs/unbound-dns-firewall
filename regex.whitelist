@@ -4,3 +4,4 @@
 ^(imap|pop|smtp)\.gmail\.com$
 ^[^\.]+\.frutch$
 ^.*-pa.googleapis.com$
+^.*apple\.com\.(edgekey|akadns).net$
