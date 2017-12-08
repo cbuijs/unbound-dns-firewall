@@ -11,7 +11,7 @@
 ^(.*\.)*(10|127|(16|17|18|19|20|21|22|23|24|25|26|27|28|29|31)\.172|254\.169|168\.192)\.in-addr\.arpa$
 ^(.*\.)*[0ef]\.ip6\.arpa$
 ^(.*[\.\-])*[0-9]*(php|web|[mw])*ad[sxz]*[0-9]*[\.\-]
-^(.*[\.\-])*ad(am|banner|bureau|click|dynamo|farm|hese|im[a]*g[e]*|ition|just|k2|load|log|media|ma(n|nager|x)|ne(t[a-z]+|xus)|renaline|rotat(e|or)|script|sense|[v\-]*s[e]*r(v|ve|ver|vi(ce|ng))|stat|stream)[sxz]*[0-9]*[\.\-]
+^(.*[\.\-])*ad(am|banner|bureau|click|dynamo|farm|hese|im[a]*g[e]*|info|ition|just|k2|load|log|media|ma(n|nager|x)|ne(t[a-z]+|xus)|renaline|rotat(e|or)|script|sense|[v\-]*s[e]*r(v|ve|ver|vi(ce|ng))|stat|stream)[sxz]*[0-9]*[\.\-]
 ^(.*[\.\-])*ad([v]*server[a-z]*|shuffle|sl|sy(s|stem)|test|(v|ve(r|rt|rtis(e|er|ing)))|trac(k|king|ker)|wise|word)[sxz]*[0-9]*[\.\-]
 ^(banner[a-z]*|open[-]*(ad|x)|page[-]*ad|(secure[-]*)*pub[-]*ad|smart[-]*ad[s]*([-]*server)*|unityad)[sz]*[0-9]*[\.\-]
 ^(.*[\.\-])*(affiliate|(anal|local)[iy](s[iy]s|ti[ck])|click|clk|cooki(e|ex)|cnt|coun(t[y]*|t[e]*[dr])|datacollect|hit|(amp|[s]*)metr[iy][ck]|open[-]*(ad|x)|partner|ping|pixel|sta(t|tisti[ck])|tag|(web|[uv]*)stat)[sz]*[0-9]*[\.\-]
