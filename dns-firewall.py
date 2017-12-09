@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
-dns-firewall.py: v1.05 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+dns-firewall.py: v1.06 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch>
@@ -79,6 +79,7 @@ def check_name(name, xlist, bw):
             name = name[name.find('.') + 1:]
     return False
 
+
 def check_regex(name, xlist, bw):
     #log_info('DNS_FIREWALL: Checking \"' + name + '\" against regex '+ bw + 'list')
     for regex in xlist:
@@ -88,15 +89,18 @@ def check_regex(name, xlist, bw):
             return True
     return False
 
+
 def read_list(name, xlist):
     log_info('DNS-FIREWALL: Reading file/list \"' + name + '\"')
     try:
         with open(name, 'r') as f:
             for line in f:
-	        if not line.startswith("#"):
+	        if not line.startswith("#") and not len(line.strip()) == 0:
                     xlist.add(line.rstrip())
+        return True
     except IOError:
         log_info('DNS-FIREWALL: Unable to open file ' + name)
+    return False
 
 
 def init(id, cfg):
@@ -109,7 +113,6 @@ def init(id, cfg):
         log_info('DNS_FIREWALL: Using NXDOMAIN response for matched queries')
     else:
         log_info('DNS_FIREWALL: Using \"' + intercept_address + '\" as response for matched queries')
-
     return True
 
 
@@ -123,7 +126,6 @@ def inform_super(
     superqstate,
     qdata,
     ):
-
     return True
 
 
@@ -167,7 +169,7 @@ def operate(
             
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
-                return True
+                return False
 
             qstate.return_msg.rep.security = 2
 
@@ -185,6 +187,5 @@ def operate(
 
     log_err('pythonmod: bad event')
     qstate.ext_state[id] = MODULE_ERROR
-    return True
-
+    return False
 
