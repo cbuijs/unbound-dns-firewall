@@ -58,7 +58,7 @@ db[0-9]sch[0-9]+\.wns\.windows\.com$
 ^wpad\.
 ^mkt[0-9]+\.
 ^protection\.[a-z]{2,2}police\.com$
-^x[^\.]*.alexa.com
+^x[^\.]*\.alexa\.com$
 ^(.*\.)*[0-9]+br\.net$
 ^(.*\.)*[0-9]+[a-z]\.
 ^(.*\.)*[0-9]+\.[a-z]{2,3}$
