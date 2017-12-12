@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.2 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.21 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -90,7 +90,7 @@ def check_name(name, xlist, bw, type, rrtype='ALL'):
     while True:
         if (debug >= 2): log_info('DNS-FIREWALL: Checking name \"' + name + '\"')
         if name in xlist:
-            log_info('DNS-FIREWALL: ' + type + ' \"' + fullname + '\" matched against ' + bw + 'list-entry \"' + name + '\"')
+            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + fullname + '\" matched against ' + bw + 'list-entry \"' + name + '\"')
             return True
         elif name.find('.') == -1:
             return False
@@ -104,7 +104,7 @@ def check_regex(name, xlist, bw, type, rrtype='ALL'):
     for regex in xlist:
         if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + name + ' against regex \"' + regex + '\"')
         if re.match(regex, name, re.I | re.M):
-            log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + '-regex \"' + regex + '\"')
+            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + '-regex \"' + regex + '\"')
             return True
     return False
 
@@ -170,7 +170,7 @@ def operate(
         name = qstate.qinfo.qname_str.rstrip('.')
 
         if check_name(name, whitelist, 'white', 'QUERY') or check_regex(name, rwhitelist, 'white', 'QUERY'):
-            log_info('DNS-FIREWALL: \"' + name + '\" is whitelisted, PASSTHRU')
+            log_info('DNS-FIREWALL: \"' + name + '\" (' + qstate.qinfo.qtype_str + ') is whitelisted, PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
@@ -178,12 +178,12 @@ def operate(
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
 
             if len(intercept_address) == 0:
-                log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\", generated REFUSED')
+                log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), generated REFUSED')
                 invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
                 qstate.return_rcode = RCODE_REFUSED
             else:
                 if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype == RR_TYPE_CNAME or qstate.qinfo.qtype == RR_TYPE_ANY:
-                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\", REDIRECTED to ' + intercept_address)
+                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), REDIRECTED to ' + intercept_address)
                     if qstate.qinfo.qtype == RR_TYPE_CNAME:
                         msg.answer.append('%s 10 IN CNAME %s' % (qstate.qinfo.qname_str, 'dns-firewall.redirected.'))
                         msg.answer.append('%s 10 IN A %s' % ('dns-firewall.redirected.', intercept_address))
@@ -191,7 +191,7 @@ def operate(
                         msg.answer.append('%s 10 IN A %s' % (qstate.qinfo.qname_str, intercept_address))
                     qstate.return_rcode = RCODE_NOERROR
                 else:
-                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\", generated REFUSED')
+                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), generated REFUSED')
                     qstate.return_rcode = RCODE_REFUSED
 
 
@@ -247,20 +247,20 @@ def operate(
                             	rawdata = answer[6:]
                                 name = decodedata(rawdata)
                             else:
-                                if (debug >=2): log_info('DNS-FIREWALL: DNS record-type ' + type + ' skipped')
+                                if (debug >=2): log_info('DNS-FIREWALL: DNS record-type/num ' + type + ' skipped')
                                 types = False
 
                             if types:
                                 if (debug >= 2): log_info('DNS-FIREWALL: Checking RESPONSE \"' + name + '\" (' + types + ') against blacklists')
                                 if check_name(name, blacklist, 'black', 'RESPONSE', types) or check_regex(name, rblacklist, 'black', 'RESPONSE', types):
-                                    log_info('DNS-FIREWALL: Blocked RESPONSE ' + qname + ' -> ' + name + ' (' + types + '), generated REFUSED')
+                                    log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + '), generated REFUSED')
                                     invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
                                     qstate.return_rcode = RCODE_REFUSED
                                     qstate.return_msg.rep.security = 2
                                     qstate.ext_state[id] = MODULE_FINISHED
                                     return True
                 else:
-                    if (debug >= 1): log_info('DNS-FIREWALL: Skipping RESPONSE check for \"' + qname + '\", already whitelisted in QUERY')
+                    if (debug >= 2): log_info('DNS-FIREWALL: Skipping RESPONSE check for \"' + qname + '\", already whitelisted in QUERY')
 
         qstate.ext_state[id] = MODULE_FINISHED
         return True
