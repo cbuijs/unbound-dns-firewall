@@ -1,4 +1,3 @@
-^[^\.]+$
 ^(.*\.)*(clients[0-9]+|encrypted|imap|mail|pop|smtp|www)\.google\.com$
 ^gmail-(imap|pop|smtp-msa)\.l\.google\.com
 ^(imap|pop|smtp)\.gmail\.com$
