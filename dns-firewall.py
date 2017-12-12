@@ -3,11 +3,11 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.1 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.11 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
-examples providen by UNBOUND/Wijngaards/Wouters.
+examples providen by UNBOUND/NLNetLabs/Wijngaards/Wouters.
 
 DNS filtering extension for the unbound DNS resolver.
 
@@ -54,6 +54,9 @@ Install and configure:
 TODO:
 
 - Better documentation
+- Feature to configure if whitelist or blacklist has precedence (now whitelist has)
+- Support CIDR/Ranges for IP entries
+- Backburner / Idea : Load native RPZ zones in BIND format (or converter?)
 
 =================================================================================
 '''
