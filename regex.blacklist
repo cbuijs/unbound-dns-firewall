@@ -29,7 +29,7 @@
 ^(.*[\.\-])*ad([v]*server[a-z]*|shuffle|sl|sy(s|stem)|test|(v|ve(r|rt|rtis(e|er|ing)))|trac(k|king|ker)|wise|word)[sxz]*[0-9]*[\.\-]
 ^(banner[a-z]*|open[-]*(ad|x)|page[-]*ad|(secure[-]*)*pub[-]*ad|smart[-]*ad[s]*([-]*server)*|unityad)[sz]*[0-9]*[\.\-]
 # Common Tracking/Stats labels
-^(.*[\.\-])*(affiliate|(anal|local)[iy](s[iy]s|ti[ck])|click|clk|cooki(e|ex)|cnt|coun(t[y]*|t[e]*[dr])|datacollect|hit|(amp|[s]*)metr[iy][ck]|open[-]*(ad|x)|partner|ping|pixel|sta(t|tisti[ck])|tag|(web|[uv]*)stat)[sz]*[0-9]*[\.\-]
+^(.*[\.\-])*(affiliate|([s]*anal|local)[iy](s[iy]s|ti[ck])|click|clk|cooki(e|ex)|cnt|coun(t[y]*|t[e]*[dr])|datacollect|hit|(amp|[s]*)metr[iy][ck]|open[-]*(ad|x)|partner|ping|pixel|sta(t|tisti[ck])|tag|(web|[uv]*)stat)[sz]*[0-9]*[\.\-]
 ^(.*[\.\-])*(telemetry|(evil|[s]*)trac(k|king|ker)|[s]*trk|utm|video[-]*stat)[sz]*[0-9]*[\.\-]
 # Common wellknown start labels
 ^(creatives|gcirm[0-9]*|marketing|oa(s|scentral)|ox-d|prom(o|otion)|.*servedby|syndication)[\.\-]
