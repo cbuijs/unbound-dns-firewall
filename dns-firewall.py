@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.11 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.2 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -182,10 +182,18 @@ def operate(
                 invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
                 qstate.return_rcode = RCODE_REFUSED
             else:
-                log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\", REDIRECTED to ' + intercept_address)
-                if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype == RR_TYPE_ANY:
-                    msg.answer.append('%s 10 IN A %s' % (qstate.qinfo.qname_str, intercept_address))
-                qstate.return_rcode = RCODE_NOERROR
+                if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype == RR_TYPE_CNAME or qstate.qinfo.qtype == RR_TYPE_ANY:
+                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\", REDIRECTED to ' + intercept_address)
+                    if qstate.qinfo.qtype == RR_TYPE_CNAME:
+                        msg.answer.append('%s 10 IN CNAME %s' % (qstate.qinfo.qname_str, 'dns-firewall.redirected.'))
+                        msg.answer.append('%s 10 IN A %s' % ('dns-firewall.redirected.', intercept_address))
+                    else:
+                        msg.answer.append('%s 10 IN A %s' % (qstate.qinfo.qname_str, intercept_address))
+                    qstate.return_rcode = RCODE_NOERROR
+                else:
+                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\", generated REFUSED')
+                    qstate.return_rcode = RCODE_REFUSED
+
 
             if not msg.set_return_msg(qstate):
                 qstate.ext_state[id] = MODULE_ERROR
