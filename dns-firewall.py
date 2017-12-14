@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.21 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.3 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -55,52 +55,78 @@ TODO:
 
 - Better documentation
 - Feature to configure if whitelist or blacklist has precedence (now whitelist has)
-- Support CIDR/Ranges for IP entries
+- Support/Finish CIDR/Ranges for IP entries
+- Cleanup RESPONSE/MODDONE section
 - Backburner / Idea : Load native RPZ zones in BIND format (or converter?)
 
 =================================================================================
 '''
 
+# Use regexes
 import re
 
-blacklist = set()
-whitelist = set()
-rblacklist = set()
-rwhitelist = set()
+blacklist = set()  # Domains blacklist
+whitelist = set()  # Domains whitelist
+cblacklist = set() # IP blacklist
+cwhitelist = set() # IP whitelist
+rblacklist = set() # Regex blacklist
+rwhitelist = set() # Regex whitelist
 
 # IP Address to redirect to, leave empty to generate REFUSED
 intercept_address = '192.168.1.250'
 
-blacklist_file = '/etc/unbound/domain.blacklist'
-whitelist_file = '/etc/unbound/domain.whitelist'
-rblacklist_file = '/etc/unbound/regex.blacklist'
-rwhitelist_file = '/etc/unbound/regex.whitelist'
+# List-files. Use one domain, IP or CIDR subnet per line
+blacklist_file = '/etc/unbound/domain.blacklist' # Domain/IP blacklist-file
+whitelist_file = '/etc/unbound/domain.whitelist' # Domain/IP whitelist-file
+rblacklist_file = '/etc/unbound/regex.blacklist' # Regex blacklist-file
+rwhitelist_file = '/etc/unbound/regex.whitelist' # Regex whitelist-file
 
 # Check answers/responses as well
 checkresponse = True
 
 # Debugging, Levels: 0=Standard, 1=Show extra query info, 2=Show all info/processing
 # The higher levels include the lower level informations
-debug = 0
+debug = 1
 
+# Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
+ipregex = re.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', re.I | re.M)
 
 def check_name(name, xlist, bw, type, rrtype='ALL'):
-    if (debug >= 1): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against domain '+ bw + 'list')
-    fullname = name
-    while True:
-        if (debug >= 2): log_info('DNS-FIREWALL: Checking name \"' + name + '\"')
-        if name in xlist:
-            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + fullname + '\" matched against ' + bw + 'list-entry \"' + name + '\"')
-            return True
-        elif name.find('.') == -1:
-            return False
+    if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against domain '+ bw + 'list')
+
+    if checkresponse and (type == 'RESPONSE') and ipregex.match(name):
+        if (bw == 'black'):
+            found = check_ip(name,cblacklist)
         else:
-            name = name[name.find('.') + 1:]
+            found = check_ip(name,cwhitelist)
+
+        if found:
+            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + 'list-entry \"' + str(found) + '\"')
+            return True
+    else:
+        fullname = name
+        while True:
+            if (debug >= 2): log_info('DNS-FIREWALL: Checking sub-name \"' + name + '\"')
+            if name in xlist:
+                if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + fullname + '\" matched against ' + bw + 'list-entry \"' + name + '\"')
+                return True
+            elif name.find('.') == -1:
+                return False
+            else:
+                name = name[name.find('.') + 1:]
+
+    return False
+
+
+def check_ip(ip, xlist):
+    # To be done.
+    # Returns False when IP (eg: 10.1.2.3) is NOT found in CIDR (eg: 10.0.0.0/8) list "xlist"
+    # Returns the CIDR network the IP matches against
     return False
 
 
 def check_regex(name, xlist, bw, type, rrtype='ALL'):
-    if (debug >= 1): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against regex '+ bw + 'list')
+    if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against regex '+ bw + 'list')
     for regex in xlist:
         if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + name + ' against regex \"' + regex + '\"')
         if re.match(regex, name, re.I | re.M):
@@ -109,13 +135,28 @@ def check_regex(name, xlist, bw, type, rrtype='ALL'):
     return False
 
 
-def read_list(name, xlist):
-    log_info('DNS-FIREWALL: Reading file/list \"' + name + '\"')
+def read_list(name, xlist, ip):
+    if (ip):
+        log_info('DNS-FIREWALL: Reading IP entries from file/list \"' + name + '\"')
+    else:
+        log_info('DNS-FIREWALL: Reading Non-IP entries from file/list \"' + name + '\"')
+
     try:
         with open(name, 'r') as f:
             for line in f:
-                if not line.startswith("#") and not len(line.strip()) == 0:
-                    xlist.add(line.rstrip())
+                entry = line.strip()
+                if not entry.startswith("#") and not len(entry.strip()) == 0:
+                    if ip:
+                        if ipregex.match(entry): # Check if IP-Address
+                            if line.find('/') == -1: # Check if Single IP or CIDR already
+                                if line.find(':') == -1:
+                                    entry = entry + '/32' # Single IPv4 Address
+                                else:
+                                    entry = entry + '/128' # Single IPv6 Address
+                            xlist.add(entry)
+                    else:
+                        if not ipregex.match(entry): # Check if IP-Address
+                            xlist.add(entry)
         return True
     except IOError:
         log_info('DNS-FIREWALL: Unable to open file ' + name)
@@ -134,10 +175,16 @@ def decodedata(rawdata):
 
 def init(id, cfg):
     log_info('DNS-FIREWALL: Initializing')
-    read_list(whitelist_file, whitelist)
-    read_list(blacklist_file, blacklist)
-    read_list(rwhitelist_file, rwhitelist)
-    read_list(rblacklist_file, rblacklist)
+    read_list(whitelist_file, whitelist, False)
+    read_list(blacklist_file, blacklist, False)
+
+    if checkresponse:
+        read_list(whitelist_file, cwhitelist, True)
+        read_list(blacklist_file, cblacklist, True)
+
+    read_list(rwhitelist_file, rwhitelist, False)
+    read_list(rblacklist_file, rblacklist, False)
+
     if len(intercept_address) == 0:
         log_info('DNS-FIREWALL: Using REFUSED for matched queries')
     else:
@@ -182,16 +229,24 @@ def operate(
                 invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
                 qstate.return_rcode = RCODE_REFUSED
             else:
-                if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype == RR_TYPE_CNAME or qstate.qinfo.qtype == RR_TYPE_ANY:
-                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), REDIRECTED to ' + intercept_address)
+                if qstate.qinfo.qtype == RR_TYPE_A or qstate.qinfo.qtype == RR_TYPE_CNAME or qstate.qinfo.qtype == RR_TYPE_PTR or qstate.qinfo.qtype == RR_TYPE_ANY:
+
+                    redirect = 'dns-firewall.redirected/' + intercept_address
                     if qstate.qinfo.qtype == RR_TYPE_CNAME:
                         msg.answer.append('%s 10 IN CNAME %s' % (qstate.qinfo.qname_str, 'dns-firewall.redirected.'))
                         msg.answer.append('%s 10 IN A %s' % ('dns-firewall.redirected.', intercept_address))
+                    elif qstate.qinfo.qtype == RR_TYPE_PTR:
+                        msg.answer.append('%s 10 IN PTR %s' % (qstate.qinfo.qname_str, 'dns-firewall.redirected.'))
+                        msg.answer.append('%s 10 IN A %s' % ('dns-firewall.redirected.', intercept_address))
                     else:
+                        redirect = intercept_address
                         msg.answer.append('%s 10 IN A %s' % (qstate.qinfo.qname_str, intercept_address))
+
+                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), REDIRECTED to ' + redirect)
+
                     qstate.return_rcode = RCODE_NOERROR
                 else:
-                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), generated REFUSED')
+                    log_info('DNS-FIREWALL: Blocked QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + '), generated REFUSED (Not an A, CNAME, PTR or ANY record)')
                     qstate.return_rcode = RCODE_REFUSED
 
 
