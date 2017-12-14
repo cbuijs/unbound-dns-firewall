@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.5 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.51 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -124,7 +124,7 @@ def check_ip(ip, bw):
     if (bw == 'black'):
         maplist = map_cblacklist
     else:
-        maplist = cwhitelist
+        maplist = map_cwhitelist
 
     if any(ip in y for y in maplist):
 	return True
@@ -191,14 +191,12 @@ def init(id, cfg):
         if (debug >= 2): log_info('DNS-FIREWALL: Mapping IP whitelist')
         global map_cwhitelist
         map_cwhitelist = map(IPNetwork, cwhitelist)
-        del cwhitelist
 
         read_list(blacklist_file, cblacklist, True)
 
         if (debug >= 2): log_info('DNS-FIREWALL: Mapping IP blacklist')
         global map_cblacklist
         map_cblacklist = map(IPNetwork, cblacklist)
-        del cblacklist
 
     read_list(rwhitelist_file, rwhitelist, False)
     read_list(rblacklist_file, rblacklist, False)
