@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.3 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.5 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -53,17 +53,24 @@ Install and configure:
 
 TODO:
 
-- Better documentation
+- Better documentation / Remarks
 - Feature to configure if whitelist or blacklist has precedence (now whitelist has)
-- Support/Finish CIDR/Ranges for IP entries
+- Add possibility to express which subnet/cidr was matched against (hit)
 - Cleanup RESPONSE/MODDONE section
 - Backburner / Idea : Load native RPZ zones in BIND format (or converter?)
 
 =================================================================================
 '''
 
+# make sure modules can be found
+import sys, commands
+sys.path.append("/usr/local/lib/python2.7/dist-packages/")
+
 # Use regexes
 import re
+
+# Use netaddr for fast IP address handling
+from netaddr import IPNetwork, IPAddress
 
 blacklist = set()  # Domains blacklist
 whitelist = set()  # Domains whitelist
@@ -95,13 +102,8 @@ def check_name(name, xlist, bw, type, rrtype='ALL'):
     if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against domain '+ bw + 'list')
 
     if checkresponse and (type == 'RESPONSE') and ipregex.match(name):
-        if (bw == 'black'):
-            found = check_ip(name,cblacklist)
-        else:
-            found = check_ip(name,cwhitelist)
-
-        if found:
-            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + 'list-entry \"' + str(found) + '\"')
+        if check_ip(name,bw):
+            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against CIDR ' + bw + 'list-entry')
             return True
     else:
         fullname = name
@@ -118,10 +120,15 @@ def check_name(name, xlist, bw, type, rrtype='ALL'):
     return False
 
 
-def check_ip(ip, xlist):
-    # To be done.
-    # Returns False when IP (eg: 10.1.2.3) is NOT found in CIDR (eg: 10.0.0.0/8) list "xlist"
-    # Returns the CIDR network the IP matches against
+def check_ip(ip, bw):
+    if (bw == 'black'):
+        maplist = map_cblacklist
+    else:
+        maplist = cwhitelist
+
+    if any(ip in y for y in maplist):
+	return True
+
     return False
 
 
@@ -180,7 +187,18 @@ def init(id, cfg):
 
     if checkresponse:
         read_list(whitelist_file, cwhitelist, True)
+
+        if (debug >= 2): log_info('DNS-FIREWALL: Mapping IP whitelist')
+        global map_cwhitelist
+        map_cwhitelist = map(IPNetwork, cwhitelist)
+        del cwhitelist
+
         read_list(blacklist_file, cblacklist, True)
+
+        if (debug >= 2): log_info('DNS-FIREWALL: Mapping IP blacklist')
+        global map_cblacklist
+        map_cblacklist = map(IPNetwork, cblacklist)
+        del cblacklist
 
     read_list(rwhitelist_file, rwhitelist, False)
     read_list(rblacklist_file, rblacklist, False)
