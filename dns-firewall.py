@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.6 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.61 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -312,9 +312,6 @@ def operate(
             qstate.ext_state[id] = MODULE_FINISHED
             return True
         else:
-
-            if (len(blacklistcache) > cachesize):
-                blacklistcache = blacklistcache[-cachesize:]
 
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
