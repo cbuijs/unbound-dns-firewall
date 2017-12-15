@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.51 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.6 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -87,6 +87,11 @@ blacklist_file = '/etc/unbound/domain.blacklist' # Domain/IP blacklist-file
 whitelist_file = '/etc/unbound/domain.whitelist' # Domain/IP whitelist-file
 rblacklist_file = '/etc/unbound/regex.blacklist' # Regex blacklist-file
 rwhitelist_file = '/etc/unbound/regex.whitelist' # Regex whitelist-file
+
+# Cache
+cachesize = 1000
+whitelistcache = []
+blacklistcache = []
 
 # Check answers/responses as well
 checkresponse = True
@@ -188,15 +193,17 @@ def init(id, cfg):
     if checkresponse:
         read_list(whitelist_file, cwhitelist, True)
 
-        if (debug >= 2): log_info('DNS-FIREWALL: Mapping IP whitelist')
+        if (debug >= 1): log_info('DNS-FIREWALL: Mapping IP whitelist')
         global map_cwhitelist
         map_cwhitelist = map(IPNetwork, cwhitelist)
+        cwhitelist.clear()
 
         read_list(blacklist_file, cblacklist, True)
 
-        if (debug >= 2): log_info('DNS-FIREWALL: Mapping IP blacklist')
+        if (debug >= 1): log_info('DNS-FIREWALL: Mapping IP blacklist')
         global map_cblacklist
         map_cblacklist = map(IPNetwork, cblacklist)
+        cblacklist.clear()
 
     read_list(rwhitelist_file, rwhitelist, False)
     read_list(rblacklist_file, rblacklist, False)
@@ -228,16 +235,46 @@ def operate(
     qdata,
     ):
 
+    global cachesize
+    global whitelistcache
+    global blacklistcache
+
+    blen = len(whitelistcache)
+    if blen > cachesize:
+        whitelistcache = whitelistcache[-cachesize:]
+        alen = len(whitelistcache)
+        if (debug >=1): log_info('DNS-FIREWALL: Trimmed whitelist cache from ' + str(blen) + ' to ' + str(alen) + ' entries')
+    blen = len(blacklistcache)
+    if len(blacklistcache) > cachesize:
+        blacklistcache = blacklistcache[-cachesize:]
+        alen = len(blacklistcache)
+        if (debug >=1): log_info('DNS-FIREWALL: Trimmed blacklist cache from ' + str(blen) + ' to ' + str(alen) + ' entries')
+
     if event == MODULE_EVENT_NEW or event == MODULE_EVENT_PASS:
 
         name = qstate.qinfo.qname_str.rstrip('.')
 
-        if check_name(name, whitelist, 'white', 'QUERY') or check_regex(name, rwhitelist, 'white', 'QUERY'):
-            log_info('DNS-FIREWALL: \"' + name + '\" (' + qstate.qinfo.qtype_str + ') is whitelisted, PASSTHRU')
+        if name not in whitelistcache:
+            if check_name(name, whitelist, 'white', 'QUERY') or check_regex(name, rwhitelist, 'white', 'QUERY'):
+                log_info('DNS-FIREWALL: Found QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in whitelist, PASSTHRU')
+                whitelistcache.append(name)
+                qstate.ext_state[id] = MODULE_WAIT_MODULE
+                return True
+        else:
+            log_info('DNS-FIREWALL: QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in whitelist CACHE, PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
-        if check_name(name, blacklist, 'black', 'QUERY') or check_regex(name, rblacklist, 'black', 'QUERY'):
+
+        if name not in blacklistcache:
+            if check_name(name, blacklist, 'black', 'QUERY') or check_regex(name, rblacklist, 'black', 'QUERY'):
+                log_info('DNS-FIREWALL: Found QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in blacklist')
+                if (debug >= 1): log_info('DNS-FIREWALL: Added QUERY \"' + name + '\" to blacklist CACHE')
+                blacklistcache.append(name)
+        else:
+            if (debug >= 1): log_info('DNS-FIREWALL: QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in blacklist CACHE')
+
+        if name in blacklistcache:
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
 
             if len(intercept_address) == 0:
@@ -275,6 +312,10 @@ def operate(
             qstate.ext_state[id] = MODULE_FINISHED
             return True
         else:
+
+            if (len(blacklistcache) > cachesize):
+                blacklistcache = blacklistcache[-cachesize:]
+
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
@@ -284,54 +325,70 @@ def operate(
             msg = qstate.return_msg
             if msg:
                 qname = msg.qinfo.qname_str.rstrip(".")
-                if not check_name(qname, whitelist, 'white', 'QUERY-RESPONSE') and not check_regex(qname, rwhitelist, 'white', 'QUERY-RESPONSE'):
-                    rep = msg.rep
-                    for i in range(0,rep.an_numrrsets):
-                        rk = rep.rrsets[i].rk
-                        data = rep.rrsets[i].entry.data
-                        type = ntohs(rk.type)
-                        for j in range(0,data.count):
-                            answer = data.rr_data[j]
-                            rawdata = answer[2:]
+                name = ''
+                if qname not in whitelistcache:
+                    if qname not in blacklistcache:
+                        rep = msg.rep
+                        for i in range(0,rep.an_numrrsets):
+                            rk = rep.rrsets[i].rk
+                            data = rep.rrsets[i].entry.data
+                            type = ntohs(rk.type)
+                            for j in range(0,data.count):
+                                answer = data.rr_data[j]
+                                rawdata = answer[2:]
 
-                            if type == 1:
-                                types = "A"
-                                name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
-                            elif type == 2:
-                                types = "NS"
-                                name = decodedata(rawdata)
-                            elif type == 5:
-                                types = "CNAME"
-                                name = decodedata(rawdata)
-                            elif type == 12:
-                                types = "PTR"
-                                name = decodedata(rawdata)
-                            elif type == 15:
-                                types = "MX"
-                            	rawdata = answer[4:]
-                                name = decodedata(rawdata)
-                            elif type == 28:
-                                types = "AAAA"
-                                name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
-                            elif type == 33:
-                                types = "SRV"
-                            	rawdata = answer[6:]
-                                name = decodedata(rawdata)
-                            else:
-                                if (debug >=2): log_info('DNS-FIREWALL: DNS record-type/num ' + type + ' skipped')
-                                types = False
+                                if type == 1:
+                                    types = "A"
+                                    name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
+                                elif type == 2:
+                                    types = "NS"
+                                    name = decodedata(rawdata)
+                                elif type == 5:
+                                    types = "CNAME"
+                                    name = decodedata(rawdata)
+                                elif type == 12:
+                                    types = "PTR"
+                                    name = decodedata(rawdata)
+                                elif type == 15:
+                                    types = "MX"
+                            	    rawdata = answer[4:]
+                                    name = decodedata(rawdata)
+                                elif type == 28:
+                                    types = "AAAA"
+                                    name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
+                                elif type == 33:
+                                    types = "SRV"
+                            	    rawdata = answer[6:]
+                                    name = decodedata(rawdata)
+                                else:
+                                    if (debug >=2): log_info('DNS-FIREWALL: DNS record-type/num ' + type + ' skipped')
+                                    types = False
 
-                            if types:
-                                if (debug >= 2): log_info('DNS-FIREWALL: Checking RESPONSE \"' + name + '\" (' + types + ') against blacklists')
-                                if check_name(name, blacklist, 'black', 'RESPONSE', types) or check_regex(name, rblacklist, 'black', 'RESPONSE', types):
-                                    log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + '), generated REFUSED')
-                                    invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
-                                    qstate.return_rcode = RCODE_REFUSED
-                                    qstate.return_msg.rep.security = 2
-                                    qstate.ext_state[id] = MODULE_FINISHED
-                                    return True
+                                if types:
+                                    if name not in blacklistcache:
+                                        if (debug >= 2): log_info('DNS-FIREWALL: Checking RESPONSE \"' + name + '\" (' + types + ') against blacklists')
+                                        if check_name(name, blacklist, 'black', 'RESPONSE', types) or check_regex(name, rblacklist, 'black', 'RESPONSE', types):
+                                            if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + ') in blacklist and added to CACHE')
+                                            blacklistcache.append(name)
+                                            blacklistcache.append(qname)
+                                    else:
+                                        if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + name + '\" in blacklist CACHE')
+
+                    else:
+                        if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" in blacklist CACHE')
+
+                    if qname in blacklistcache or name in blacklistcache:
+                        log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + '), generated REFUSED')
+                        invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
+                        qstate.return_rcode = RCODE_REFUSED
+                        qstate.return_msg.rep.security = 2
+                        qstate.ext_state[id] = MODULE_FINISHED
+                        return True
+                    else:
+                        if (debug >= 2): log_info('DNS-FIREWALL:Did not found RESPONSE \"' + qname + '\" in blacklist')
+
                 else:
-                    if (debug >= 2): log_info('DNS-FIREWALL: Skipping RESPONSE check for \"' + qname + '\", already whitelisted in QUERY')
+                    if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" (QUERY) in whitelist CACHE, PASSTHRU')
 
         qstate.ext_state[id] = MODULE_FINISHED
         return True
