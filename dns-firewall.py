@@ -3,7 +3,7 @@
 
 '''
 =================================================================================
- dns-firewall.py: v2.61 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v2.65 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -261,7 +261,7 @@ def operate(
                 qstate.ext_state[id] = MODULE_WAIT_MODULE
                 return True
         else:
-            log_info('DNS-FIREWALL: QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in whitelist CACHE, PASSTHRU')
+            log_info('DNS-FIREWALL: Found QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in whitelist CACHE, PASSTHRU')
             qstate.ext_state[id] = MODULE_WAIT_MODULE
             return True
 
@@ -272,7 +272,7 @@ def operate(
                 if (debug >= 1): log_info('DNS-FIREWALL: Added QUERY \"' + name + '\" to blacklist CACHE')
                 blacklistcache.append(name)
         else:
-            if (debug >= 1): log_info('DNS-FIREWALL: QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in blacklist CACHE')
+            if (debug >= 1): log_info('DNS-FIREWALL: Found QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in blacklist CACHE')
 
         if name in blacklistcache:
             msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
@@ -323,6 +323,7 @@ def operate(
             if msg:
                 qname = msg.qinfo.qname_str.rstrip(".")
                 name = ''
+                types = '*'
                 if qname not in whitelistcache:
                     if qname not in blacklistcache:
                         rep = msg.rep
@@ -365,27 +366,36 @@ def operate(
                                     if name not in blacklistcache:
                                         if (debug >= 2): log_info('DNS-FIREWALL: Checking RESPONSE \"' + name + '\" (' + types + ') against blacklists')
                                         if check_name(name, blacklist, 'black', 'RESPONSE', types) or check_regex(name, rblacklist, 'black', 'RESPONSE', types):
-                                            if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + ') in blacklist and added to CACHE')
+                                            if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + name + '\" [\"' + qname + '\"] (' + types + ') in blacklist and added to CACHE')
                                             blacklistcache.append(name)
                                             blacklistcache.append(qname)
                                     else:
                                         if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + name + '\" in blacklist CACHE')
 
+                                if name in blacklistcache:
+                                    break
+
+                            if name in blacklistcache:
+                                break
+
                     else:
-                        if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" in blacklist CACHE')
+                        if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" (QNAME) in blacklist CACHE')
 
                     if qname in blacklistcache or name in blacklistcache:
-                        log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + '), generated REFUSED')
+                        if name == '':
+                            log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" (QNAME), generated REFUSED')
+                        else:
+                            log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + types + '), generated REFUSED')
                         invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
                         qstate.return_rcode = RCODE_REFUSED
                         qstate.return_msg.rep.security = 2
                         qstate.ext_state[id] = MODULE_FINISHED
                         return True
                     else:
-                        if (debug >= 2): log_info('DNS-FIREWALL:Did not found RESPONSE \"' + qname + '\" in blacklist')
+                        if (debug >= 2): log_info('DNS-FIREWALL: Did not found RESPONSE in blacklist')
 
                 else:
-                    if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" (QUERY) in whitelist CACHE, PASSTHRU')
+                    if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + qname + '\" (QNAME) in whitelist CACHE, PASSTHRU')
 
         qstate.ext_state[id] = MODULE_FINISHED
         return True
