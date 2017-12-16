@@ -1,4 +1,7 @@
+127.0.0.1
+192.168.1.0/24
 abc.go.com
+amazon.com
 ampproject.com
 ampproject.org
 android.clients.google.com
@@ -39,6 +42,7 @@ ntp.org
 p13.dynect.net
 query.petametrics.com
 safebrowsing-cache.google.com
+ssl-images-amazon.com
 static.reverse.softlayer.com
 whatsapp.net
 xda-cdn.com
