@@ -4,3 +4,4 @@
 ^[^\.]+\.frutch$
 ^.*-pa.googleapis.com$
 ^.*apple\.com\.(edgekey|akadns).net$
+^[^\.]+\.frutch$
