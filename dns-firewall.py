@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env pypy
 # -*- coding: utf-8 -*-
 
 '''
 =================================================================================
- dns-firewall.py: v3.0 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v3.2 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =================================================================================
 
 Based on dns_filter.py by Oliver Hitz <oliver@net-track.ch> and the python
@@ -55,9 +55,6 @@ TODO:
 
 - Better Documentation / Remarks / Comments
 - Feature to configure if whitelist or blacklist has precedence (now whitelist has)
-- Add possibility to express which subnet/cidr was matched against (hit)
-- Cleanup RESPONSE/MODDONE section
-- Better/faster IP/CIDR matching
 
 =================================================================================
 '''
@@ -69,16 +66,17 @@ sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 # Use regexes
 import re
 
+# Use module pysubnettree
+import SubnetTree
+
 # Use expiringdictionary for cache
 from expiringdict import ExpiringDict
 
-# Use netaddr for fast IP address handling
-from netaddr import IPNetwork, IPAddress
-
-blacklist = {}  # Domains blacklist
-whitelist = {}  # Domains whitelist
-cblacklist = set() # IP blacklist
-cwhitelist = set() # IP whitelist
+# Lists
+blacklist = dict() # Domains blacklist
+whitelist = dict() # Domains whitelist
+cblacklist = SubnetTree.SubnetTree() # IP blacklist
+cwhitelist = SubnetTree.SubnetTree() # IP whitelist
 rblacklist = set() # Regex blacklist
 rwhitelist = set() # Regex whitelist
 
@@ -92,8 +90,8 @@ rblacklist_file = '/etc/unbound/regex.blacklist' # Regex blacklist-file
 rwhitelist_file = '/etc/unbound/regex.whitelist' # Regex whitelist-file
 
 # Cache
-cachesize = 1000
-cachettl = 1800
+cachesize = 5000
+cachettl = 3600
 blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 
@@ -102,50 +100,52 @@ checkresponse = True
 
 # Debugging, Levels: 0=Standard, 1=Show extra query info, 2=Show all info/processing, 3=Everything/Loud!
 # The higher levels include the lower level informations
-debug = 1
+debug = 2
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
-ipregex = re.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', re.I | re.M)
+ipregex = re.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', re.I)
+
+#################################################################
 
 # Check against domain lists
 def check_name(name, bw, type, rrtype='ALL'):
     if (type == 'RESPONSE') and not checkresponse:
-        if (debug >= 2): log_info('DNS-FIREWALL: NOT checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against '+ bw + 'list')
-        return False
-
-    if (len(name) == 0):
+        if (debug >= 2): log_info('DNS-FIREWALL: NOT checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against '+ bw + '-list')
         return False
 
     if not check_cache('white', name):
         if not check_cache(bw, name):
+            # Check for IP's
             if (type == 'RESPONSE') and rrtype in ('A', 'AAAA'):
-                if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against CIDR '+ bw + 'list')
+                if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against CIDR '+ bw + '-list')
                 cidr = check_ip(name,bw)
                 if cidr:
-                    if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against CIDR ' + bw + 'list-entry \"' + cidr + '\"')
+                    if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against CIDR ' + bw + '-list \"' + cidr + '\"')
                     add_cache(bw, name)
                     return True
                 else:
                     return False
 
             else:
-                if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against domain '+ bw + 'list')
+                # Check against domains
+                if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against domain '+ bw + '-list')
                 testname = name.lower()
                 while True:
-                    if (debug >= 2): log_info('DNS-FIREWALL: Checking domain \"' + testname + '\"')
                     if (bw == 'black'):
-                         found = (testname in blacklist.keys())
+                         found = (testname in blacklist)
                     else:
-                         found = (testname in whitelist.keys())
+                         found = (testname in whitelist)
                     if found:
-                        if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + 'list-entry \"' + testname + '\"')
+                        if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + '-list-entry \"' + testname + '\"')
                         add_cache(bw, name)
                         return True
                     elif testname.find('.') == -1:
                         break
                     else:
                         testname = testname[testname.find('.') + 1:]
+                        if (debug >= 2): log_info('DNS-FIREWALL: Checking for ' + bw + '-listed parent domain \"' + testname + '\"')
 
+            # Match against Regex-es
             if check_regex(name, bw, type, rrtype):
                 add_cache(bw, name)
                 return True
@@ -156,6 +156,8 @@ def check_name(name, bw, type, rrtype='ALL'):
     else:
         if (bw == 'white'):
             return True
+
+    if (bw == 'black') and (debug >= 1): log_info('DNS-FIREWALL: NEUTRAL ' + type + ' \"' + name + '\"')
         
     return False
 
@@ -163,12 +165,12 @@ def check_name(name, bw, type, rrtype='ALL'):
 # Check cache
 def check_cache(bw, name):
     if (bw == 'black'):
-        if name in blackcache.keys():
-            log_info('DNS-FIREWALL: Found \"' + name + '\" in black CACHE')
+        if name in blackcache:
+            log_info('DNS-FIREWALL: Found \"' + name + '\" in black-CACHE')
             return True
     else:
-        if name in whitecache.keys():
-            log_info('DNS-FIREWALL: Found \"' + name + '\" in white CACHE')
+        if name in whitecache:
+            log_info('DNS-FIREWALL: Found \"' + name + '\" in white-CACHE')
             return True
 
     return False
@@ -177,10 +179,10 @@ def check_cache(bw, name):
 # Add to cache
 def add_cache(bw, name):
     if (bw == 'black'):
-       log_info('DNS-FIREWALL: Added \"' + name + '\" to black CACHE')
+       log_info('DNS-FIREWALL: Added \"' + name + '\" to black-CACHE')
        blackcache[name] = True
     else:
-       log_info('DNS-FIREWALL: Added \"' + name + '\" to white CACHE')
+       log_info('DNS-FIREWALL: Added \"' + name + '\" to white-CACHE')
        whitecache[name] = True
 
     return True
@@ -189,13 +191,11 @@ def add_cache(bw, name):
 # Check against IP lists (called from check_name)
 def check_ip(ip, bw):
     if (bw == 'black'):
-        maplist = map_cblacklist
+	if ip in cblacklist:
+            return cblacklist[ip]
     else:
-        maplist = map_cwhitelist
-
-    for i in maplist:
-        if ip in i:
-            return str(i)
+        if ip in cwhitelist:
+            return cwhitelist[ip]
 
     return False
 
@@ -207,25 +207,29 @@ def check_regex(name, bw, type, rrtype='ALL'):
     else:
         rlist = rwhitelist
 
-    if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against regex '+ bw + 'list')
+    if (debug >= 2): log_info('DNS-FIREWALL: Checking ' + type + ' \"' + name + '\" (RR:' + rrtype + ') against regex '+ bw + '-list')
     for regex in rlist:
         if (debug >= 3): log_info('DNS-FIREWALL: Checking ' + name + ' against regex \"' + regex + '\"')
-        if re.match(regex, name, re.I | re.M):
-            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + '-regex \"' + regex + '\"')
+        if re.search(regex, name, re.I):
+            if (debug >= 1): log_info('DNS-FIREWALL: ' + type + ' \"' + name + '\" matched against ' + bw + '-regex \"' + regex +'\"')
             return True
+
     return False
 
 
 # Read file-lists and process
 def read_list(name, xlist, ip=False, regex=False):
-    if (len(name) > 0):
-        if (ip):
-            log_info('DNS-FIREWALL: Reading IP entries from file/list \"' + name + '\"')
-        else:
-            log_info('DNS-FIREWALL: Reading Non-IP entries from file/list \"' + name + '\"')
+    if ip:
+        listtype = 'IP/CIDR'
+    elif regex:
+        listtype = 'REGEX'
+    else:
+        listtype = 'DOMAIN'
 
+    if (len(name) > 0):
         try:
             with open(name, 'r') as f:
+                count = 0
                 for line in f:
                     entry = line.strip()
                     if not entry.startswith("#") and not len(entry.strip()) == 0:
@@ -237,22 +241,26 @@ def read_list(name, xlist, ip=False, regex=False):
                                         entry = entry + '/32' # Single IPv4 Address
                                     else:
                                         entry = entry + '/128' # Single IPv6 Address
-                                xlist.add(entry.lower())
+
+                                xlist[entry] = entry
+                                count += 1
                         else:
                             # Only domains/regexes
                             if not ipregex.match(entry): # Check if IP-Address
                                 #xlist.add(entry.lower())
                                 if regex:
-                                    xlist.add(entry.lower())
+                                    xlist.add(entry)
                                 else:
                                     xlist[entry.lower()] = True
-            if ip:
-                if (debug >= 1): log_info('DNS-FIREWALL: Fetched ' + str(len(xlist)) + ' IP entries' + ' from file/list \"' + name + '\"')
-            else:
-                if (debug >= 1): log_info('DNS-FIREWALL: Fetched ' + str(len(xlist)) + ' Non-IP entries' + ' from file/list \"' + name + '\"')
+                                count += 1
+
+                log_info('DNS-FIREWALL: Fetched ' + str(count) + ' ' + listtype + ' entries from file/list \"' + name + '\"')
+
             return True
+
         except IOError:
             log_info('DNS-FIREWALL: Unable to open file ' + name)
+
         return False
     else:
         return True
@@ -286,18 +294,7 @@ def init(id, cfg):
     # Read IP's, only needed if we check responses
     if checkresponse:
         read_list(whitelist_file, cwhitelist, True, False)
-
-        if (debug >= 1): log_info('DNS-FIREWALL: Mapping IP whitelist')
-        global map_cwhitelist
-        map_cwhitelist = map(IPNetwork, cwhitelist)
-        cwhitelist.clear()
-
         read_list(blacklist_file, cblacklist, True, False)
-
-        if (debug >= 1): log_info('DNS-FIREWALL: Mapping IP blacklist')
-        global map_cblacklist
-        map_cblacklist = map(IPNetwork, cblacklist)
-        cblacklist.clear()
 
     # Read REGEX-es
     read_list(rwhitelist_file, rwhitelist, False, True)
@@ -326,8 +323,7 @@ def operate(id, event, qstate, qdata):
 
         # Get query name
         name = qstate.qinfo.qname_str.rstrip('.').lower()
-        if len(name) > 0:
-
+        if name:
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
             if check_name(name, 'white', 'QUERY'):
                 if (debug >= 1): log_info('DNS-FIREWALL: Found QUERY \"' + name + '\" (' + qstate.qinfo.qtype_str + ') in whitelist, PASSTHRU')
@@ -392,73 +388,74 @@ def operate(id, event, qstate, qdata):
             if msg:
                 # Get query-name
                 qname = msg.qinfo.qname_str.rstrip(".").lower()
-                # Check if query is not whitelisted
-                blockit = False
-                name = False
-                if not check_name(qname, 'white', 'QUERY'):
-                    # Check if query is not blacklisted
-                    if not check_name(qname, 'black', 'QUERY'):
-                        type = msg.qinfo.qtype_str.upper()
-                        name = False
-                        # Get response and loop through the RRSets
-                        rep = msg.rep
-                        for i in range(0,rep.an_numrrsets):
-                            rk = rep.rrsets[i].rk
-                            data = rep.rrsets[i].entry.data
-                            type = rk.type_str.upper()
-                            # Get data
-                            for j in range(0,data.count):
-                                answer = data.rr_data[j]
-                                if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SRV'):
-                                    if type == 'A':
-                                        name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
-                                    elif type == 'AAAA':
-                                        name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
-                                    elif type in ('CNAME', 'NS', 'PTR'):
-                                        name = decodedata(answer,0)
-                                    elif type == 'MX':
-                                        name = decodedata(answer,1)
-                                    elif type == 'SRV':
-                                        name = decodedata(answer,5)
-                                    else:
-                                        name = False
+                if qname:
+                    # Check if query is not whitelisted
+                    blockit = False
+                    name = False
+                    if not check_name(qname, 'white', 'QUERY'):
+                        # Check if query is not blacklisted
+                        if not check_name(qname, 'black', 'QUERY'):
+                            type = msg.qinfo.qtype_str.upper()
+                            name = False
+                            # Get response and loop through the RRSets
+                            rep = msg.rep
+                            for i in range(0,rep.an_numrrsets):
+                                rk = rep.rrsets[i].rk
+                                data = rep.rrsets[i].entry.data
+                                type = rk.type_str.upper()
+                                # Get data
+                                for j in range(0,data.count):
+                                    answer = data.rr_data[j]
+                                    if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SRV'):
+                                        if type == 'A':
+                                            name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
+                                        elif type == 'AAAA':
+                                            name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
+                                        elif type in ('CNAME', 'NS', 'PTR'):
+                                            name = decodedata(answer,0)
+                                        elif type == 'MX':
+                                            name = decodedata(answer,1)
+                                        elif type == 'SRV':
+                                            name = decodedata(answer,5)
+                                        else:
+                                            name = False
 
-                                    if (debug >= 2): log_info('DNS-FIREWALL: Checking RESPONSE \"' + name + '\" (' + type + ') against blacklists')
-                                    if check_name(name, 'black', 'RESPONSE', type):
-                                        if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + name + '\" (' + type + ') in blacklist')
-                                        blockit = True
-                                else:
-                                    # If not an A, AAAA, CNAME, MX, PTR or SRV we stop processing.
-                                    if (debug >=2): log_info('DNS-FIREWALL: DNS record-type/num ' + type + ' skipped')
-                                    blockit = False
+                                        if (debug >= 2): log_info('DNS-FIREWALL: Checking RESPONSE \"' + name + '\" (' + type + ') against blacklists')
+                                        if check_name(name, 'black', 'RESPONSE', type):
+                                            if (debug >= 1): log_info('DNS-FIREWALL: Found RESPONSE \"' + name + '\" (' + type + ') in blacklist')
+                                            blockit = True
+                                    else:
+                                        # If not an A, AAAA, CNAME, MX, PTR or SRV we stop processing.
+                                        if (debug >=2): log_info('DNS-FIREWALL: DNS record-type/num ' + type + ' skipped')
+                                        blockit = False
     
+                                    # Stop looping when blacklisted, no need to process further
+                                    if blockit:
+                                        break
+
                                 # Stop looping when blacklisted, no need to process further
                                 if blockit:
                                     break
 
-                            # Stop looping when blacklisted, no need to process further
-                            if blockit:
-                                break
-
-                    else:
-                        blockit = true
-
-                    # Should we block it, if so, generate response accordingly, otther wise DNS resolution continues as normal
-                    if blockit:
-                        if name:
-                            log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + type + '), generated REFUSED')
                         else:
-                            log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" (QNAME), generated REFUSED')
+                            blockit = true
 
-                        # Add query-name to the black-cache
-                        if not check_cache('black', qname):
-                            add_cache('black', qname)
+                        # Should we block it, if so, generate response accordingly, otther wise DNS resolution continues as normal
+                        if blockit:
+                            if name:
+                                log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" -> \"' + name + '\" (' + type + '), generated REFUSED')
+                            else:
+                                log_info('DNS-FIREWALL: Blocked RESPONSE \"' + qname + '\" (QNAME), generated REFUSED')
 
-                        qstate.return_rcode = RCODE_REFUSED
-                        invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
+                            # Add query-name to the black-cache
+                            if not check_cache('black', qname):
+                                add_cache('black', qname)
 
-                        # Allow response modification (Security setting)
-                        qstate.return_msg.rep.security = 2
+                            qstate.return_rcode = RCODE_REFUSED
+                            invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
+
+                            # Allow response modification (Security setting)
+                            qstate.return_msg.rep.security = 2
 
         # All done
         qstate.ext_state[id] = MODULE_FINISHED
@@ -468,5 +465,11 @@ def operate(id, event, qstate, qdata):
     log_err('pythonmod: bad event')
     qstate.ext_state[id] = MODULE_ERROR
     return False
+
+def parseIPPart(ipx, shift):
+    if ipx is None:
+        return 0
+    return int(ipx) << shift
+
 
 # <EOF>
