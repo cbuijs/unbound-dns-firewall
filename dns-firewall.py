@@ -1,9 +1,9 @@
-#!/usr/bin/env pypy
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 '''
 =========================================================================================
- dns-firewall.py: v3.68-20171220 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v3.7-20171220 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -104,7 +104,7 @@ checkresponse = True
 
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
-debug = 1
+debug = 2
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
 ipregex = re.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', re.I)
@@ -429,9 +429,11 @@ def operate(id, event, qstate, qdata):
 
                             else:
                                 blockit = True
+                                break
 
                         else:
                             blockit = False
+                            break
 
                     else:
                         blockit = False
