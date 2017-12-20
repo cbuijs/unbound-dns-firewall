@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 '''
-=================================================================================
- dns-firewall.py: v3.65 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
-=================================================================================
+=========================================================================================
+ dns-firewall.py: v3.68-20171220 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+=========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
 
@@ -56,7 +56,7 @@ TODO:
 - Better Documentation / Remarks / Comments
 - Feature to configure if whitelist or blacklist has precedence (now whitelist has)
 
-=================================================================================
+=========================================================================================
 '''
 
 # make sure modules can be found
@@ -81,8 +81,8 @@ blacklist = dict() # Domains blacklist
 whitelist = dict() # Domains whitelist
 cblacklist = SubnetTree.SubnetTree() # IP blacklist
 cwhitelist = SubnetTree.SubnetTree() # IP whitelist
-rblacklist = set() # Regex blacklist
-rwhitelist = set() # Regex whitelist
+rblacklist = dict() # Regex blacklist
+rwhitelist = dict() # Regex whitelist
 
 # IP Address to redirect to, leave empty to generate REFUSED
 intercept_address = '192.168.1.250'
@@ -102,14 +102,14 @@ whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 # Check answers/responses as well
 checkresponse = True
 
-# Debugging, Levels: 0=Standard, 1=Show extra query info, 2=Show all info/processing
+# Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
 debug = 1
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
 ipregex = re.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', re.I)
 
-#################################################################
+#########################################################################################
 
 # Check against domain lists
 def check_name(name, bw, type, rrtype='ALL'):
@@ -119,7 +119,7 @@ def check_name(name, bw, type, rrtype='ALL'):
             if (type == 'RESPONSE') and rrtype in ('A', 'AAAA'):
                 cidr = check_ip(name,bw)
                 if cidr:
-                    if (debug >= 1): log_info(tag + 'Found IP \"' + name + '\" in ' + bw + '-listed \"' + cidr + '\"')
+                    if (debug >= 1): log_info(tag + 'Found IP \"' + name + '\" in ' + bw + '-listed network \"' + cidr + '\"')
                     add_cache(bw, name)
                     return True
                 else:
@@ -134,17 +134,19 @@ def check_name(name, bw, type, rrtype='ALL'):
                     else:
                          found = (testname in whitelist)
                     if found:
-                        if (debug >= 1): log_info(tag + 'Found DOMAIN ' + type + ' \"' + name + '\" matching ' + bw + '-list-entry \"' + testname + '\"')
+                        if (debug >= 1): log_info(tag + 'Found DOMAIN ' + type + ' \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\"')
                         add_cache(bw, name)
                         return True
                     elif testname.find('.') == -1:
                         break
                     else:
                         testname = testname[testname.find('.') + 1:]
-                        if (debug >= 2): log_info(tag + 'Checking for ' + bw + '-listed parent domain \"' + testname + '\"')
+                        if (debug >= 3): log_info(tag + 'Checking for ' + bw + '-listed parent domain \"' + testname + '\"')
 
             # Match against Regex-es
-            if check_regex(name, bw, type, rrtype):
+            regex = check_regex(name, bw, type, rrtype)
+            if regex:
+                if (debug >= 2): log_info(tag + 'Found \"' + name + '\", matched against ' + bw + '-regex \"' + regex +'\"')
                 add_cache(bw, name)
                 return True
 
@@ -162,11 +164,11 @@ def check_name(name, bw, type, rrtype='ALL'):
 def check_cache(bw, name):
     if (bw == 'black'):
         if name in blackcache:
-            if (debug >= 1): log_info(tag + 'Found \"' + name + '\" in black-CACHE')
+            if (debug >= 2): log_info(tag + 'Found \"' + name + '\" in black-cache')
             return True
     else:
         if name in whitecache:
-            if (debug >= 1): log_info(tag + 'Found \"' + name + '\" in white-CACHE')
+            if (debug >= 2): log_info(tag + 'Found \"' + name + '\" in white-cache')
             return True
 
     return False
@@ -175,10 +177,10 @@ def check_cache(bw, name):
 # Add to cache
 def add_cache(bw, name):
     if (bw == 'black'):
-       if (debug >= 1): log_info(tag + 'Added \"' + name + '\" to black-CACHE')
+       if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to black-cache')
        blackcache[name] = True
     else:
-       if (debug >= 1): log_info(tag + 'Added \"' + name + '\" to white-CACHE')
+       if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to white-cache')
        whitecache[name] = True
 
     return True
@@ -203,12 +205,12 @@ def check_regex(name, bw, type, rrtype='ALL'):
     else:
         rlist = rwhitelist
 
-    for regex in rlist:
-        if (debug >= 2): log_info(tag + 'Checking ' + name + ' against regex \"' + regex + '\"')
-        if re.search(regex, name, re.I):
-            if (debug >= 1): log_info(tag + type + ' \"' + name + '\" matched against ' + bw + '-regex \"' + regex +'\"')
-            return True
-
+    for i in range(1,len(rlist)/2):
+        regex = rlist[i,1]
+        if (debug >= 3): log_info(tag + 'Checking ' + name + ' against regex \"' + rlist[i,2] + '\"')
+        if regex.search(name):
+            return rlist[i,2]
+        
     return False
 
 
@@ -242,12 +244,12 @@ def read_list(name, xlist, ip=False, regex=False):
                         else:
                             # Only domains/regexes
                             if not ipregex.match(entry): # Check if IP-Address
-                                #xlist.add(entry.lower())
+                                count += 1
                                 if regex:
-                                    xlist.add(entry)
+                                    xlist[count,1] = re.compile(entry, re.I)
+                                    xlist[count,2] = entry
                                 else:
                                     xlist[entry.lower()] = True
-                                count += 1
 
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(count) + ' ' + listtype + ' entries from file/list \"' + name + '\"')
 
@@ -277,7 +279,7 @@ def decodedata(rawdata,start):
 
 # Initialization
 def init(id, cfg):
-    if (debug >= 1): log_info(tag + 'Initializing')
+    log_info(tag + 'Initializing')
 
     # Read domains
     read_list(whitelist_file, whitelist, False, False)
@@ -326,7 +328,7 @@ def operate(id, event, qstate, qdata):
         name = qstate.qinfo.qname_str.rstrip('.').lower()
         if name:
             qtype = qstate.qinfo.qtype_str.upper()
-            if (debug >= 1): log_info(tag + 'Started on QUERY \"' + name + '\" (RR:' + qtype + ')')
+            if (debug >= 2): log_info(tag + 'Started on QUERY \"' + name + '\" (RR:' + qtype + ')')
 
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
             if not check_name(name, 'white', 'QUERY'):
@@ -337,7 +339,7 @@ def operate(id, event, qstate, qdata):
 
                     # If intercept_address is empty, generate return-code REFUSED, otherwise generate answer to redirect
                     if len(intercept_address) == 0:
-                        if (debug >= 1): log_info(tag + 'Blocked QUERY \"' + name + '\", generated REFUSED')
+                        if (debug >= 1): log_info(tag + 'REFUSED QUERY \"' + name + '\"')
                         qstate.return_rcode = RCODE_REFUSED
                     else:
                         # Can only redirect for A, CNAME and ANY record-types, if not one of those, a REFUSE is generated
@@ -352,11 +354,11 @@ def operate(id, event, qstate, qdata):
 
                             msg.answer.append('%s 10 IN A %s' % (fqname, intercept_address))
 
-                            if (debug >= 1): log_info(tag + 'Blocked QUERY \"' + name + '\" (RR:' + qtype + '), REDIRECTED to ' + redirect)
+                            if (debug >= 1): log_info(tag + 'REDIRECTED QUERY \"' + name + '\" (RR:' + qtype + ') to ' + redirect)
 
                             qstate.return_rcode = RCODE_NOERROR
                         else:
-                            if (debug >= 1): log_info(tag + 'Blocked QUERY \"' + name + '\", (RR:' + qtype + ', non-redirectable), generated REFUSED')
+                            if (debug >= 1): log_info(tag + 'REFUSED QUERY \"' + name + '\", (RR:' + qtype + ', non-redirectable)')
                             qstate.return_rcode = RCODE_REFUSED
 
                     # Check if message is okay, if not end with error
@@ -367,7 +369,7 @@ def operate(id, event, qstate, qdata):
                     # Allow response modification (Security setting)
                     qstate.return_msg.rep.security = 2
 
-                    if (debug >= 1): log_info(tag + 'Finished on QUERY \"' + name + '\" (RR:' + qtype + ')')
+                    if (debug >= 2): log_info(tag + 'Finished on QUERY \"' + name + '\" (RR:' + qtype + ')')
                     qstate.ext_state[id] = MODULE_FINISHED
                     return True
 
@@ -389,7 +391,7 @@ def operate(id, event, qstate, qdata):
                     type = rk.type_str.upper()
                     dname = rk.dname_str.rstrip('.').lower()
                     if dname:
-                        if (debug >= 1): log_info(tag + 'Starting on RESPONSE \"' + dname + '\" (RR:' + type + ')')
+                        if (debug >= 2): log_info(tag + 'Starting on RESPONSE \"' + dname + '\" (RR:' + type + ')')
                         if not check_name(dname, 'white', 'RESPONSE', type):
                             if not check_name(dname, 'black', 'RESPONSE', type):
                                 data = rep.rrsets[i].entry.data
@@ -411,7 +413,7 @@ def operate(id, event, qstate, qdata):
                                             name = False
 
                                         if name:
-                                            if (debug >= 1): log_info(tag + 'RESPONSE \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
+                                            if (debug >= 2): log_info(tag + 'Checking RESPONSE \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
                                             if not check_name(name, 'white', 'RESPONSE', type):
                                                 if check_name(name, 'black', 'RESPONSE', type):
                                                     blockit = True
@@ -437,7 +439,7 @@ def operate(id, event, qstate, qdata):
                     # Block it and generate response accordingly, otther wise DNS resolution continues as normal
                     if blockit:
                         if name:
-                            if (debug >= 1): log_info(tag + 'Blocked RESPONSE \"' + dname + '\" -> \"' + name + '\", generated REFUSED')
+                            if (debug >= 1): log_info(tag + 'REFUSED RESPONSE \"' + dname + '\" -> \"' + name + '\"')
 
                             # Add query-name to the black-cache
                             if not check_cache('black', dname):
@@ -448,7 +450,7 @@ def operate(id, event, qstate, qdata):
                             # Allow response modification (Security setting)
                             qstate.return_msg.rep.security = 2
 
-                    if (debug >= 1): log_info(tag + 'Finished on RESPONSE \"' + dname + '\" (RR:' + type + ')')
+                    if (debug >= 2): log_info(tag + 'Finished on RESPONSE \"' + dname + '\" (RR:' + type + ')')
 
                     if blockit:
                         break
