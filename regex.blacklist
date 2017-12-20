@@ -65,6 +65,7 @@ db[0-9]sch[0-9]+\.wns\.windows\.com$
 ^myetherwallet\.
 #^d[^\.]+\.cloudfront.net$
 #^.*\.www
+^.*(facebook|paypal)\..*-
 ^(.*\.)*g00\.
 ^(.*\.)*(10|127|(16|17|18|19|20|21|22|23|24|25|26|27|28|29|31)\.172|254\.169|168\.192)\.in-addr\.arpa$
 ^(.*\.)*[0ef]\.ip6\.arpa$
