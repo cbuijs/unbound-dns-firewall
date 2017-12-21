@@ -33,7 +33,7 @@
 ^(.*[\.\-])*(telemetry|(evil|[s]*)trac(k|king|ker)|[s]*trk|utm|video[-]*stat)[sz]*[0-9]*[\.\-]
 # Common wellknown start labels
 ^(creatives|gcirm[0-9]*|marketing|oa(s|scentral)|ox-d|prom(o|otion)|.*servedby|syndication)[\.\-]
-^[a-z]\.([0-9]+|ad|click)
+^[a-z]\.([0-9]+|ad[^d]|click)
 # Google
 ^(.*\.)*google[-]*(analytic|syndication|(ad[a-z0-9]*|tag)[-]*service)[s]*\.
 ^(.*\.)*(www[-]*)*google[-]*(analytic[s]*|(ad|tag)[-]*manager)\.
