@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v3.7-20171220 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v3.75-20171226 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -102,6 +102,9 @@ whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 # Check answers/responses as well
 checkresponse = True
 
+# Automatic generated reverse entries for IP-Addresses that are blocke
+autoreverse = True
+
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
 debug = 2
@@ -176,12 +179,24 @@ def check_cache(bw, name):
 
 # Add to cache
 def add_cache(bw, name):
+
+    if autoreverse:
+        addarpa = revip(name)
+    else:
+        addarpa = False
+
     if (bw == 'black'):
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to black-cache')
        blackcache[name] = True
+       if addarpa:
+           if (debug >= 2): log_info(tag + 'Auto-Generated/Added \"' + addarpa + '\" (' + name + ') to black-cache')
+           blackcache[addarpa] = True
     else:
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to white-cache')
        whitecache[name] = True
+       if addarpa:
+           if (debug >= 2): log_info(tag + 'Auto-Generated/Added \"' + addarpa + '\" (' + name + ') to white-cache')
+           whitecache[addarpa] = True
 
     return True
 
@@ -212,6 +227,20 @@ def check_regex(name, bw, type, rrtype='ALL'):
             return rlist[i,2]
         
     return False
+
+
+# Reverse IP (arpa)
+def revip(ip):
+    if ipregex.match(ip):
+        if ip.find(':') == -1:
+            arpa = '.'.join(ip.split('.')[::-1]) + '.in-addr.arpa'  # Add IPv4 in-addr.arpa
+        else:
+            a = ip.replace(':', '')
+            arpa = '.'.join(a[i:i+1] for i in range(0, len(a), 1))[::-1] + '.ip6.arpa'  # Add IPv6 ip6.arpa
+
+        return arpa
+    else:
+        return False
 
 
 # Read file-lists and process
@@ -448,6 +477,9 @@ def operate(id, event, qstate, qdata):
                                 add_cache('black', dname)
 
                             qstate.return_rcode = RCODE_REFUSED
+
+                            # Invalidate any cached entry
+                            invalidateQueryInCache(qstate, msg.qinfo)
 
                             # Allow response modification (Security setting)
                             qstate.return_msg.rep.security = 2
