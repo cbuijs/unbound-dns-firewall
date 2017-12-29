@@ -8,7 +8,7 @@
 /^(.*\.)*gvt[1-3]\.com$/
 # Apple
 /^.*(apple|icloud|itunes)\.com$/
-/^.*(apple|icloud|itunes)\.com\.(edgekey|akadns).net$/
+/^.*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns).net$/
 /^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/
 /^(.*\.)*itunes(essentials|festivals|match|su)\.com$/
 # Misc
@@ -21,7 +21,6 @@ ampproject.com
 ampproject.org
 android.clients.google.com
 android.com
-apple.com.edgekey.net.globalredir.akadns.net
 apple-dns.net
 apple-support.akadns.net
 babasbrew.com
