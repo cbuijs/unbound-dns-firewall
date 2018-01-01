@@ -1,7 +1,7 @@
 ### REGEXES ###
 # Google
 /^(.*\.)*(clients[0-9]+|encrypted|imap|mail|payments|play|pop|smtp|wallet|www)\.google\.com$/
-/^gmail-(imap|pop|smtp-msa)\.l\.google\.com/
+/^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail)\.l\.google\.com/
 /^(imap|pop|smtp)\.gmail\.com$/
 /^[^\.]+\.frutch$/
 /^.*-pa.googleapis.com$/
