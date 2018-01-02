@@ -1,7 +1,7 @@
 # unbound-dns-firewall
 DNS-Firewall Python script for <a href="http://unbound.net/">UNBOUND</a>
 
-Little blurp to facilitate DNS filtering using UNBOUND and it's <a href="https://www.unbound.net/documentation/pythonmod/">python-module</a> facility. Scales very well and is very fast. Might work well as alternative for <a href="https://www.isc.org/rpz/">RPZ</a> or <a href="http://www.thekelleys.org.uk/dnsmasq/doc.html">DNSMasq</a> / <a href="https://github.com/StevenBlack/hosts">HOSTS Files</a> combo.
+Little blurp to facilitate DNS filtering using UNBOUND and it's <a href="https://www.unbound.net/documentation/pythonmod/examples/example0.html">python-module</a> facility. Scales very well and is very fast. Might work well as alternative for <a href="https://www.isc.org/rpz/">RPZ</a> or <a href="http://www.thekelleys.org.uk/dnsmasq/doc.html">DNSMasq</a> / <a href="https://github.com/StevenBlack/hosts">HOSTS Files</a> combo.
 
 All of this began when I started to search for an alternative for using UNBOUND's "local-zone/data" which doesn't scale very well with large lists and trashes memory. I also wanted to stay on UNBOUND for my DNS resolution purposes. Also liked the concept of <a href="https://github.com/conformal/adsuck">ADSUCK</a> using regex (ADSUCK has been abandoned though). During my search I tripped over a <a href="https://github.com/ohitz/unbound-domainfilter">Python script</a> by <a href="https://github.com/ohitz">Oliver Hitz</a>, started to test it, optimized it, added regexp and REFUSED feature, and some more informative logging.
 
