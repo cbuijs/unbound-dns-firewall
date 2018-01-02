@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.12-20171228 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.15-20180102 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -63,7 +63,8 @@ import sys, commands
 sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 
 # Use regexes
-import re
+#import re
+import regex
 
 # Use module pysubnettree
 import SubnetTree
@@ -107,15 +108,18 @@ checkresponse = True
 # Automatic generated reverse entries for IP-Addresses that are blocke
 autoreverse = True
 
+# Block IPv6 queries
+blockv6 = False
+
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
 debug = 2
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
-ipregex = re.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', re.I)
+ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
 
 # Regex to match regex-entries in lists
-isregex = re.compile('^/.*/$')
+isregex = regex.compile('^/.*/$')
 
 #########################################################################################
 
@@ -152,9 +156,9 @@ def check_name(name, bw, type, rrtype='ALL'):
                         if (debug >= 3): log_info(tag + 'Checking for ' + bw + '-listed parent domain \"' + testname + '\"')
 
             # Match against Regex-es
-            regex = check_regex(name, bw, type, rrtype)
-            if regex:
-                if (debug >= 2): log_info(tag + 'Found \"' + name + '\", matched against ' + bw + '-regex \"' + regex +'\"')
+            foundregex = check_regex(name, bw, type, rrtype)
+            if foundregex:
+                if (debug >= 2): log_info(tag + 'Found \"' + name + '\", matched against ' + bw + '-regex \"' + foundregex +'\"')
                 add_cache(bw, name)
                 return True
 
@@ -226,9 +230,9 @@ def check_regex(name, bw, type, rrtype='ALL'):
         rlist = rwhitelist
 
     for i in range(1,len(rlist)/2):
-        regex = rlist[i,1]
+        checkregex = rlist[i,1]
         if (debug >= 3): log_info(tag + 'Checking ' + name + ' against regex \"' + rlist[i,2] + '\"')
-        if regex.search(name):
+        if checkregex.search(name):
             return rlist[i,2]
         
     return False
@@ -262,9 +266,9 @@ def read_list(name, regexlist, iplist, domainlist):
                     if not (entry.startswith("#")) and not (len(entry.strip()) == 0):
                         if (isregex.match(entry)):
                             # It is an Regex
-                            regex = entry.strip('/')
-                            regexlist[regexcount,1] = re.compile(regex, re.I)
-                            regexlist[regexcount,2] = regex
+                            cleanregex = entry.strip('/')
+                            regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
+                            regexlist[regexcount,2] = cleanregex
                             regexcount += 1
 
                         elif (ipregex.match(entry)):
@@ -327,6 +331,9 @@ def init(id, cfg):
         if (debug >= 1): log_info(tag + 'Using REDIRECT to \"' + intercept_address + '\" for matched queries/responses')
     return True
 
+    if blockv6:
+        if (debug >= 1): log_info(tag + 'Blocking IPv6-Based queries')
+
 
 def deinit(id):
     return True
@@ -352,12 +359,18 @@ def operate(id, event, qstate, qdata):
         name = qstate.qinfo.qname_str.rstrip('.').lower()
         if name:
             qtype = qstate.qinfo.qtype_str.upper()
+            blockit = False
+            if blockv6:
+                if (qtype == 'AAAA') or (name.find('.ip6.arpa') > 0):
+                    if (debug >= 2): log_info(tag + 'Detected IPv6-Based QUERY for \"' + name + '\" (RR:' + qtype + ')')
+                    blockit = True
+
             if (debug >= 2): log_info(tag + 'Started on QUERY \"' + name + '\" (RR:' + qtype + ')')
 
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
-            if not check_name(name, 'white', 'QUERY'):
+            if not check_name(name, 'white', 'QUERY') or blockit:
                 # Check if blacklisted, if so, genrate response accordingly
-                if check_name(name, 'black', 'QUERY'):
+                if check_name(name, 'black', 'QUERY') or blockit:
                     msg = DNSMessage(qstate.qinfo.qname_str, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA | PKT_AA)
                     msg.answer = []
 
