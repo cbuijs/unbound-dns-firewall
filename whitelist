@@ -14,9 +14,8 @@
 /^[^\.]+\.frutch$/
 ### DOMAINS ###
 1.168.192.in-addr.arpa
-abc.go.com
-abc.go.com
-abcnews.go.com
+abc.com
+abcnews.com
 amazon.com
 ampproject.com
 ampproject.org
@@ -26,6 +25,7 @@ apple-dns.net
 apple-support.akadns.net
 babasbrew.com
 bankofamerica.com
+bofaml.com
 careerbuilder.com
 cbuprovidence.chickenkiller.com
 cdn-icloud-content.g.aaplimg.com
@@ -34,7 +34,6 @@ cnet.com
 content-img.newsinc.com
 d2qxwxxauf5yxr.cloudfront.net
 d3jdtixm7cvu7y.cloudfront.net
-demdex.net
 demdex.net
 dropboxapi.com
 dropbox.com
@@ -47,6 +46,7 @@ ggpht.com
 githubapp.com
 github.com
 githubusercontent.com
+go.com
 googlecode.com
 gtld-servers.net
 hubspot.com
@@ -58,24 +58,18 @@ lastpass.com
 lepoint.fr
 licdn.com
 lineageos.org
-lineageos.org
 linkedin.com
-lnkd.in
 lnkd.in
 maps.chitika.net
 maps-static.chitika.net
 media-amazon.com
 merrilledge.com
 msnbc.com
-msnbc.com
 mzstatic.com
 nbcnews.com
-nbcnews.com
 nbcuas.com
-nbcume.sc.omtrdc.net
-nbcume.sc.omtrdc.net
-nbcume.sc.omtrdc.net
-nbcume.sc.omtrdc.net
+nbcuni.com
+nbcuniversal.com
 nest.com
 netdna-cdn.com
 netdna-ssl.com
@@ -86,16 +80,15 @@ nflxext.com
 nflximg.net
 nflxvideo.net
 ntp.org
-oscar.go.com
 ox.ac.uk
 p13.dynect.net
 peapod.com
 query.petametrics.com
 root-servers.net
 safebrowsing-cache.google.com
-safebrowsing-cache.google.com
 schema.org
 site
+s-nbcnews.com
 sonos.com.edgekey.net
 sonos.com.edgekey.net.globalredir.akadns.net
 squarespace.com
@@ -106,7 +99,6 @@ wellsfargoadvisors.com
 wellsfargo.com
 wellsfargomedia.com
 whatsapp.net
-www.bofaml.com
 xda-cdn.com
 xda-developers.com
 ### IPS / CIDRS ###
