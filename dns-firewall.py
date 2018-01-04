@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.5-20180104 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.51-20180104 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -107,7 +107,7 @@ checkresponse = True
 # Automatic generated reverse entries for IP-Addresses that are blocke
 autoreverse = True
 
-# Block IPv6 queries (no responses)
+# Block IPv6 queries/responses
 blockv6 = False
 
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
@@ -123,7 +123,7 @@ isregex = regex.compile('^/.*/$')
 #########################################################################################
 
 # Check against domain lists
-def check_name(name, bw, type, rrtype='ALL', cacheit=True):
+def check_name(name, bw, type, rrtype='ALL'):
     if not check_cache('white', name):
         if not check_cache(bw, name):
             # Check for IP's
