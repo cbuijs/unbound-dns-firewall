@@ -2,7 +2,6 @@
 /^(.*\.)*g00\./
 /^(.*\.)*(10|127|(16|17|18|19|20|21|22|23|24|25|26|27|28|29|31)\.172|254\.169|168\.192)\.in-addr\.arpa$/
 /^(.*\.)*[0ef]\.ip6\.arpa$/
-/^.*[^a-z0-9\.\:\-].*$/
 # No dots in hostname
 #^[^\.]+$
 # Invalid chars
@@ -75,7 +74,6 @@
 /^(.*\.)*g00\./
 /^(.*\.)*(10|127|(16|17|18|19|20|21|22|23|24|25|26|27|28|29|31)\.172|254\.169|168\.192)\.in-addr\.arpa$/
 /^(.*\.)*[0ef]\.ip6\.arpa$/
-/^.*[^a-z0-9\.\:\-].*$/
 ### DOMAINS ###
 0000mps.webpreview.dsl.net
 0001.2waky.com
@@ -200,6 +198,7 @@
 123.ichkoche.at
 123-jewelry-store.com
 123-rencontre-webcam.com
+126419-deu-storno-sicherheit-konto_identity.sicherheitssystem-sicherheitshilfe.ga
 1278725189.pub.ezanga.com
 1-2fly-befragung.de
 1-2-money.com
@@ -1028,6 +1027,7 @@
 8004hosting.com
 801.tianyaui.com
 8033bb.com
+804460-germany-verbraucher-mitteilung-konto_identity.sicher-vorbeugung.tk
 8066hg.com
 8080proxy.com
 810f3f9dde63ae3.com
@@ -1119,6 +1119,7 @@
 93t2yw.iudasitebuildng.com
 94dbhbj3l4blaeyfgl7q45glbaer.giponfeste.at
 9523cc.com
+962583-deutschland-nutzung-mitteilung-konto_identity.sicher-sicherheitsabfrage.ml
 974gfbjhb23hbfkyfaby3byqlyuebvly5q254y.mendilobo.com
 97b1c56132dfcdd90f93-0c5c8388c0a5897e648f883e2c86dc72.r54.cf5.rackcdn.com
 97ff623306ff4c26996.com
@@ -36454,6 +36455,7 @@ mgmforex.com
 mgogo.com
 mgolevha.com
 mgqfmjuc.nzgerhievplkzcqksrlo.ml
+m_graph.vidpark.com
 mgrshs.com
 mgrutivnzs.com
 mgrxsztbcfeg.com
@@ -62685,6 +62687,7 @@ zftgljkhrdze.com
 zfwzdrzcasov.com
 zfyn.com
 zgalejbegahc.com
+zgarniij_vouchher.skroc.pl
 zgarnijbilety.pl
 zgarnijciuchy.pl
 zgarnijdoladowanie.pl
