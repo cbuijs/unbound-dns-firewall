@@ -4,15 +4,15 @@
 /^(.*\.)*[0ef]\.ip6\.arpa$/
 /^.*[^a-z0-9\.\:\-].*$/
 # No dots in hostname
-/^[^\.]+$/
+#^[^\.]+$
 # Invalid chars
-/^.*[^a-zA-Z0-9\.\-].*$/
+#^.*[^a-zA-Z0-9\.\-].*$
 # More then 36 labels in hostname
-/^([^\.]+\.){37,}$/
+#^([^\.]+\.){37,}$
 # Label longer then 63 positions
-/^([^\.]+){64,}$/
+#^([^\.]+){64,}$
 # Hostname longer then 253 positions
-/^.{254,}$/
+#^.{254,}$
 # Garbage TLD.s
 /^(.*\.)*(ad|analytic[s]*|asia|bar|bid|biz|click|club|country|cricket|date|dclk|download|gdn|guru|i2p|info|kim|link|loan|men|mom|online|party|racing|ren|review|rocks|science|stream|study|tec(h|hnology)|top|trade|vip|website|work|win|xin|xyz)$/
 # Common file-extension TLD's
@@ -12652,6 +12652,7 @@ cl.xzqxzs.com
 clydesdale-bank-uk.com
 clydesdalebankuk.com
 clz3.net
+cm
 cm1359.com
 cm2.eim.ae.spallen.me
 c.maccosmetics.com
@@ -37112,6 +37113,7 @@ mob-free.frl
 mobgi.com
 mobgold.com
 mobhero.com
+mobi
 mobiactif.es
 mobi.adsage.com
 mobiappsclub.com
@@ -38794,6 +38796,7 @@ nakumititolegb.com
 nalook.com
 namastea.es
 namasteepost.com
+name
 namecardcenter.net
 namedq.com
 name.f1foodies.com
@@ -40519,6 +40522,7 @@ offers.keynote.com
 offers.nordvpn.com
 offersrus.com
 offerx.co.uk
+office
 office2013activatorkey.com
 office365engine.tk
 office-365.life
@@ -40905,6 +40909,7 @@ ongkidcasarv.com
 onie65garrett.ga
 oniineservice.wellsfargo.com.drkierabuchanan.com.au
 onineaha.org
+onion
 oniopertoma.com
 onise.fr
 onixcase.com
@@ -44258,6 +44263,7 @@ prno.com
 pr.notebookjournal.de
 prnutritionals.com
 prnx.net
+pro
 proac.nationwide.com
 proacti.com.br
 proactiveacademybd.com
@@ -51520,6 +51526,7 @@ sp2.superpages.com
 sp3.cndm.com
 sp96878.com
 spacco-inc.com
+space
 space.austinjaw.com
 spacebusinesshub.com
 spacecodecpack.net
