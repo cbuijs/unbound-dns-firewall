@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.51-20180104 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.52-20180105 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -325,24 +325,30 @@ def decodedata(rawdata, start):
 # Generate response DNS message
 def generate_response(qstate, rname, rtype):
     if (len(intercept_address) > 0) and (rtype in ('A', 'CNAME', 'PTR' , 'ANY')):
-        rmsg = DNSMessage(rname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
-
         if rtype in ('CNAME', 'PTR'):
+            if rtype == 'CNAME':
+                rmsg = DNSMessage(rname, RR_TYPE_CNAME, RR_CLASS_IN, PKT_QR | PKT_RA )
+            else:
+                rmsg = DNSMessage(rname, RR_TYPE_PTR, RR_CLASS_IN, PKT_QR | PKT_RA )
+
             fname = 'dns-firewall.redirected.'
             redirect = fname.strip('.') + '/' + intercept_address
-            rmsg.answer.append('%s 120 IN %s %s' % (rname, rtype, fname))
+            rmsg.answer.append('%s %d IN %s %s' % (rname, cachettl, rtype, fname))
         else:
+            rmsg = DNSMessage(rname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
             fname = rname + '.'
             redirect = intercept_address
 
-        rmsg.answer.append('%s 120 IN A %s' % (fname, intercept_address))
+        rmsg.answer.append('%s %d IN A %s' % (fname, cachettl, intercept_address))
+
         rmsg.set_return_msg(qstate)
 
         if not rmsg.set_return_msg(qstate):
             return False
 
+        qstate.no_cache_store = 0
         invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
-        storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 1)
+        storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 0)
         qstate.return_msg.rep.security = 2
 
         return redirect
@@ -579,9 +585,6 @@ def operate(id, event, qstate, qdata):
                             # Add response-name to the black-cache
                             if not check_cache('black', rname):
                                 add_cache('black', rname)
-
-                            # Invalidate cache
-                            invalidateQueryInCache(qstate, msg.qinfo)
 
                             # Generate response based on query-name
                             target = generate_response(qstate, qname, qtype)
