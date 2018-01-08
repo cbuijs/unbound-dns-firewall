@@ -23,6 +23,7 @@ android.clients.google.com
 android.com
 apcc.com
 apc.com
+api.ipify.org
 apple-dns.net
 apple-support.akadns.net
 babasbrew.com
@@ -41,6 +42,7 @@ dropbox.com
 dropbox.net
 dropboxstatic.com
 dropboxusercontent.com
+ec-ns.sascdn.com
 expedia.com
 france.tv
 fuelrewards.com
@@ -51,12 +53,14 @@ githubusercontent.com
 go.com
 googlecode.com
 gtld-servers.net
+hopx.cedexis.com
 hubspot.com
 ice.infomaniak.ch
 ifttt.com
 internet.nl
 invensys.com
 ituneslogin.net
+js.maxmind.com
 lastpass.com
 lepoint.fr
 licdn.com
@@ -91,6 +95,7 @@ p13.dynect.net
 peapod.com
 pelco.com
 pelco.org
+players.brightcove.net
 providencejournal.com
 root-servers.net
 safebrowsing-cache.google.com
@@ -104,9 +109,9 @@ sonos.com.edgekey.net.globalredir.akadns.net
 squarespace.com
 ssl-images-amazon.com
 static.reverse.softlayer.com
-static.siteheart.com
 stopandshop.com
 tac.com
+tvthemes.plexapp.com.cdn.cloudflare.net
 wellsfargoadvisors.com
 wellsfargo.com
 wellsfargomedia.com
