@@ -11,4 +11,6 @@ See <a href="https://github.com/cbuijs/unbound-dns-firewall/blob/master/dns-fire
 
 Included lists are compiled from my generic <a href="https://github.com/cbuijs/dns-firewall">DNS-Firewall</a> lists repository, and is intended to block online/web Advertising, Cyber-Attacks, Fake-News/Info, Gambling, Intrusion/Privacy, Malicious/Malware, Phising, Pornography and Tracking.
 
+Feel free to <a href="https://paypal.me/cbuijs">donate</a> to this personal project to increase reliability and award my time, blood, sweat and tears. 
+
 <b>NOTE</b>: This is a work-in-progress and mistakes/errors/faults will creep in from time to time. The lists are updated at least once very 24 hours. This is done by an automated process, which can fail. See disclaimer. 
