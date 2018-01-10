@@ -13,7 +13,9 @@
 # Hostname longer then 253 positions
 #^.{254,}$
 # Garbage TLD.s
-/^(.*\.)*(accountant|ad|analytic[s]*|asia|bar|bid|biz|christmas|click|club|country|cricket|date|dclk|diet|download|faith|gdn|guru|i2p|info|kim|link|loan|men|mom|ninja|online|party|pro|racing|realtor|reise|ren|review|rocks|science|space|stream|study|tec(h|hnology)|top|trade|vip|web(cam|site)|work|win|xin|xyz)$/
+/^(.*\.)*(accountant|ad|analytic[s]*|bar|bid|biz|christmas|click|club|country|cricket|date|dclk|diet|download|faith|gdn|guru|i2p|info|kim|link|loan|men|mobi|mom|name|ninja|office|on(ion|line)|party|pro|racing|realtor|reise|ren|review|rocks|science|space|stream|study|tec(h|hnology)|top|trade|vip|web(cam|site)|work|win|xin|xyz)$/
+# Garbage CCTLD's
+/^(.*\.)*(asia|cm|cn|in|gq|pw|ru|ua)$/
 # Common file-extension TLD's
 /^(.*\.)*(do[ct]|p[op][ast]|pub|sld|vsd|x[lp][as])[ablmstx]{0,1}$/
 /^(.*\.)*(csv|gz|pdf|tar|t[e]*xt|zip)$/
@@ -21,8 +23,6 @@
 /^(.*\.)*(adult|porn|sex|xxx)$/
 # Gambling TLD's
 /^(.*\.)*(auction|bet|casino|game[s]*|poker)$/
-# Garbage CCTLD's
-/^(.*\.)*(cn|in|gq|pw|ru|ua)$/
 # Private
 /^(.*\.)*(corp|example|frutch|home|host|invalid|lan|local|localdomain|localhost|nxdomain|rejected|router|test|url|workgroup|wpad)$/
 /^(.*\.)*(10|127|(16|17|18|19|20|21|22|23|24|25|26|27|28|29|31)\.172|254\.169|168\.192)\.in-addr\.arpa$/
@@ -12690,7 +12690,6 @@ cl.xzqxzs.com
 clydesdale-bank-uk.com
 clydesdalebankuk.com
 clz3.net
-cm
 cm1359.com
 cm2.eim.ae.spallen.me
 c.maccosmetics.com
@@ -37219,7 +37218,6 @@ mob-free.frl
 mobgi.com
 mobgold.com
 mobhero.com
-mobi
 mobiactif.es
 mobi.adsage.com
 mobiappsclub.com
@@ -38927,7 +38925,6 @@ nakumititolegb.com
 nalook.com
 namastea.es
 namasteepost.com
-name
 namecardcenter.net
 namedq.com
 name.f1foodies.com
@@ -40662,7 +40659,6 @@ offers.keynote.com
 offers.nordvpn.com
 offersrus.com
 offerx.co.uk
-office
 office2013activatorkey.com
 office365engine.tk
 office-365.life
@@ -41054,7 +41050,6 @@ ongkidcasarv.com
 onie65garrett.ga
 oniineservice.wellsfargo.com.drkierabuchanan.com.au
 onineaha.org
-onion
 oniopertoma.com
 onise.fr
 onixcase.com
