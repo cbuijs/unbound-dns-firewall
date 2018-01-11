@@ -42,6 +42,7 @@ blocklist.de
 blocklist.greensnow.co
 bofaml.com
 botvrij.eu
+bro-tracker.atlassian.net
 careerbuilder.com
 cbuhome.dnsalias.com
 cbuprovidence.chickenkiller.com
@@ -73,6 +74,7 @@ dyn.com
 dyndns.org
 easylist-downloads.adblockplus.org
 easylist.to
+ec-ns.sascdn.com
 emergingthreats.net
 expedia.com
 fanboy.co.nz
@@ -102,6 +104,7 @@ internet.nl
 invensys.com
 isc.org
 ituneslogin.net
+js.maxmind.com
 lastpass.com
 lede-project.org
 lepoint.fr
@@ -147,6 +150,7 @@ p13.dynect.net
 peapod.com
 pelco.com
 pelco.org
+players.brightcove.net
 play-music.gstatic.com
 projecthoneypot.org
 providencejournal.com
@@ -183,9 +187,11 @@ sysctl.org
 tac.com
 talosintel.com
 team-cymru.org
+tracker.bro.org
 turris.cz
 urlblacklist.com
 v.firebog.net
+vjs.zencdn.net
 void.gr
 wellsfargoadvisors.com
 wellsfargo.com
