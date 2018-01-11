@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.52-20180105 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.55-20180111 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -59,7 +59,7 @@ TODO:
 '''
 
 # make sure modules can be found
-import sys, commands
+import sys, commands, datetime
 sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 
 # Use module regex
@@ -77,6 +77,7 @@ tagcount = 0
 
 # IP Address to redirect to, leave empty to generate REFUSED
 intercept_address = '192.168.1.250'
+intercept_host = 'dns-firewall.redirected.'
 
 # List files
 # Per line you can specify:
@@ -119,6 +120,9 @@ ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1
 
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
+
+# Regex for excluded entries to fix issues
+exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', regex.I) # Bug in pysubnettree '::/8' matching IPv4 as well
 
 #########################################################################################
 
@@ -271,7 +275,7 @@ def read_list(name, regexlist, iplist, domainlist):
                 domaincount = 0
                 for line in f:
                     entry = line.strip()
-                    if not (entry.startswith("#")) and not (len(entry) == 0):
+                    if not (exclude.match(entry)) and not (entry.startswith("#")) and not (len(entry) == 0):
                         if (isregex.match(entry)):
                             # It is an Regex
                             cleanregex = entry.strip('/')
@@ -294,6 +298,8 @@ def read_list(name, regexlist, iplist, domainlist):
                             # It is a domain
                             domainlist[entry.lower()] = True
                             domaincount += 1
+                    else:
+                        if (debug >= 2): log_info(tag + 'Skipped/Exclude line \"' + entry + '\"')
 
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str (domaincount) + ' DOMAINS from file/list \"' + name + '\"')
 
@@ -323,32 +329,49 @@ def decodedata(rawdata, start):
 
 
 # Generate response DNS message
-def generate_response(qstate, rname, rtype):
-    if (len(intercept_address) > 0) and (rtype in ('A', 'CNAME', 'PTR' , 'ANY')):
-        if rtype in ('CNAME', 'PTR'):
-            if rtype == 'CNAME':
-                rmsg = DNSMessage(rname, RR_TYPE_CNAME, RR_CLASS_IN, PKT_QR | PKT_RA )
-            else:
-                rmsg = DNSMessage(rname, RR_TYPE_PTR, RR_CLASS_IN, PKT_QR | PKT_RA )
+def generate_response(qstate, rname, rtype, rrtype):
+    if (len(intercept_address) > 0 and len(intercept_host) > 0) and (rtype in ('A', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT', 'ANY')):
+        qname = False
 
-            fname = 'dns-firewall.redirected.'
-            redirect = fname.strip('.') + '/' + intercept_address
+        if rtype in ('CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
+            if rtype == 'MX':
+                fname = '1 ' + intercept_host
+            elif rtype == 'SOA':
+                serial = datetime.datetime.now().strftime("%Y%m%d%H")
+                fname = intercept_host + ' hostmaster.' + intercept_host + ' ' + serial + ' 86400 7200 3600000 120'
+            elif rtype == 'SRV':
+                fname = '0 0 80 ' + intercept_host
+            else:
+                fname = intercept_host
+
+            rmsg = DNSMessage(rname, rrtype, RR_CLASS_IN, PKT_QR | PKT_RA )
+            redirect = intercept_host.strip('.') + ' (' + intercept_address + ')'
             rmsg.answer.append('%s %d IN %s %s' % (rname, cachettl, rtype, fname))
+            qname = intercept_host
+        elif rtype == 'TXT':
+            rmsg = DNSMessage(rname, rrtype, RR_CLASS_IN, PKT_QR | PKT_RA )
+            redirect = '\"BLOCKED BY DNS-FIREWALL\"'
+            rmsg.answer.append('%s %d IN %s %s' % (rname, cachettl, rtype, redirect))
         else:
             rmsg = DNSMessage(rname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
-            fname = rname + '.'
             redirect = intercept_address
+            qname = rname + '.'
 
-        rmsg.answer.append('%s %d IN A %s' % (fname, cachettl, intercept_address))
+        if qname:
+		rmsg.answer.append('%s %d IN A %s' % (qname, cachettl, intercept_address))
 
         rmsg.set_return_msg(qstate)
 
         if not rmsg.set_return_msg(qstate):
+            log_info(tag + 'RESPONSE ERROR: ' + str(rmsg.answer))
             return False
 
+        if qstate.return_msg:
+            invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
+
         qstate.no_cache_store = 0
-        invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
         storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 0)
+
         qstate.return_msg.rep.security = 2
 
         return redirect
@@ -365,7 +388,7 @@ def init(id, cfg):
     read_list(blacklist_file, rblacklist, cblacklist, blacklist)
 
     # Redirect entry, we don't want to expose it
-    blacklist['dns-firewall.redirected'] = True
+    blacklist[intercept_host.strip('.')] = True
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -428,7 +451,7 @@ def operate(id, event, qstate, qdata):
                     blockit = True
 
                     # Create response
-                    target = generate_response(qstate, qname, qtype)
+                    target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
                     if target:
                         if (debug >= 1): log_info(tag + 'REDIRECTED QUERY \"' + qname + '\" (RR:' + qtype + ') to ' + target)
                         qstate.return_rcode = RCODE_NOERROR
@@ -487,7 +510,7 @@ def operate(id, event, qstate, qdata):
                                                     answer = data.rr_data[j]
 
                                                     # Check if supported ype to record-type
-                                                    if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SRV'):
+                                                    if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
                                                         ip6 = False
 
                                                         # Fetch Address or Name based on record-Type
@@ -505,6 +528,8 @@ def operate(id, event, qstate, qdata):
                                                             name = decodedata(answer,0)
                                                             if (name.find('.ip6.arpa') > 0):
                                                                 ip6 = True
+                                                        elif type == 'SOA':
+                                                            name = decodedata(answer,0).split(' ')[0][0].strip('.')
                                                         elif type == 'SRV':
                                                             name = decodedata(answer,5)
                                                         else:
@@ -531,7 +556,7 @@ def operate(id, event, qstate, qdata):
                                                                 blockit = False
                                                                 break
                                                     else:
-                                                        # If not an A, AAAA, CNAME, MX, PTR or SRV we stop processing and passthru
+                                                        # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
                                                         if (debug >=2): log_info(tag + 'Ignoring RESPONSE RR-type ' + type)
                                                         blockit = False
 
@@ -587,7 +612,7 @@ def operate(id, event, qstate, qdata):
                                 add_cache('black', rname)
 
                             # Generate response based on query-name
-                            target = generate_response(qstate, qname, qtype)
+                            target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
                             if target:
                                 if (debug >= 1): log_info(tag + 'REDIRECTED RESPONSE \"' + lname + '\" (RR:' + rtype + ') to ' + target)
                                 qstate.return_rcode = RCODE_NOERROR
