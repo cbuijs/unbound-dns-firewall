@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.60-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.63-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -112,7 +112,7 @@ checkresponse = True
 autoreverse = True
 
 # Block IPv6 queries/responses
-blockv6 = False
+blockv6 = True
 
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
@@ -137,6 +137,10 @@ exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', 
 def check_name(name, bw, type, rrtype='ALL'):
     if (bw == 'white') and disablewhitelist:
         return False
+
+    if blockv6 and (bw == 'black') and ((rrtype == 'AAAA') or (name.find('.ip6.arpa') > 0)):
+        if (debug >= 2): log_info(tag + 'Detected IPv6 for \"' + name + '\" (RR:' + rrtype + ')')
+        return True
 
     if not check_cache('white', name):
         if not check_cache(bw, name):
@@ -299,17 +303,21 @@ def read_list(name, regexlist, iplist, domainlist):
                                 if line.find(':') == -1:
                                     entry = entry + '/32' # Single IPv4 Address
                                 else:
-                                    entry = entry + '/128' # Single IPv6 Address
+                                    if blockv6:
+                                       entry = False
+                                    else:
+                                       entry = entry + '/128' # Single IPv6 Address
 
-                            iplist[entry] = entry
-                            ipcount += 1
+                            if entry:
+                                iplist[entry] = entry
+                                ipcount += 1
 
                         elif (isdomain.match(entry)):
                                 # It is a domain
                                 domainlist[entry.strip('.')] = True
                                 domaincount += 1
                         else:
-                            if (debug >= 2): log_info(tag + name + ': Skipped invalid line \"' + entry + '\"')
+                            if (debug >= 2): log_error(tag + name + ': Skipped invalid line \"' + entry + '\"')
                                 
                     else:
                         if (debug >= 2): log_info(tag + name + ': Skipped/Exclude line \"' + entry + '\"')
@@ -343,6 +351,10 @@ def decodedata(rawdata, start):
 
 # Generate response DNS message
 def generate_response(qstate, rname, rtype, rrtype):
+    if blockv6 and ((rtype == 'AAAA') or (rname.find('.ip6.arpa') > 0)):
+        if (debug >= 3): log_info(tag + 'GR: Detected IPv6 for \"' + rname + '\" (RR:' + rtype + ')')
+        return False
+
     if (len(intercept_address) > 0 and len(intercept_host) > 0) and (rtype in ('A', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT', 'ANY')):
         qname = False
 
@@ -411,10 +423,11 @@ def init(id, cfg):
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
     else:
         if (debug >= 1): log_info(tag + 'Using REDIRECT to \"' + intercept_address + '\" for matched queries/responses')
-    return True
 
     if blockv6:
         if (debug >= 1): log_info(tag + 'Blocking IPv6-Based queries')
+
+    return True
 
 
 def client_ip(qstate):
@@ -463,10 +476,6 @@ def operate(id, event, qstate, qdata):
             if (debug >= 2): log_info(tag + 'Started on \"' + qname + '\" (RR:' + qtype + ')')
 
             blockit = False
-            if blockv6:
-                if (qtype == 'AAAA') or (qname.find('.ip6.arpa') > 0):
-                    if (debug >= 2): log_info(tag + 'Detected IPv6 for \"' + qname + '\" (RR:' + qtype + ')')
-                    blockit = True
 
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
             if blockit or not check_name(qname, 'white', 'QUERY', qtype):
@@ -541,23 +550,17 @@ def operate(id, event, qstate, qdata):
 
                                                     # Check if supported ype to record-type
                                                     if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
-                                                        ip6 = False
-
                                                         # Fetch Address or Name based on record-Type
                                                         if type == 'A':
                                                             name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
                                                         elif type == 'AAAA':
                                                             name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
-                                                            if blockv6:
-                                                                ip6 = True
                                                         elif type in ('CNAME', 'NS'):
                                                             name = decodedata(answer,0)
                                                         elif type == 'MX':
                                                             name = decodedata(answer,1)
                                                         elif type == 'PTR':
                                                             name = decodedata(answer,0)
-                                                            if (name.find('.ip6.arpa') > 0):
-                                                                ip6 = True
                                                         elif type == 'SOA':
                                                             name = decodedata(answer,0).split(' ')[0][0].strip('.')
                                                         elif type == 'SRV':
@@ -569,11 +572,6 @@ def operate(id, event, qstate, qdata):
                                                         # If we have a name, process it
                                                         if name:
                                                             if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
-                                                            if blockv6 and ip6:
-                                                                if (debug >= 2): log_info(tag + 'Detected IPv6 for \"' + name + '\" (RR:' + type + ')')
-                                                                blockit = True
-                                                                break
-
                                                             # Not Whitelisted?
                                                             if not check_name(name, 'white', 'RESPONSE', type):
                                                                 # Blacklisted?
