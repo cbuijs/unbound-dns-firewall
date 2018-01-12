@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.56-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.58-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -102,6 +102,9 @@ cachettl = 1800
 blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 
+# Forcing blacklist, use with caution
+disablewhitelist = False
+
 # Check answers/responses as well
 checkresponse = True
 
@@ -132,6 +135,9 @@ exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', 
 
 # Check against domain lists
 def check_name(name, bw, type, rrtype='ALL'):
+    if (bw == 'white') and disablewhitelist:
+        return False
+
     if not check_cache('white', name):
         if not check_cache(bw, name):
             # Check for IP's
@@ -153,7 +159,7 @@ def check_name(name, bw, type, rrtype='ALL'):
                     else:
                          found = (testname in whitelist)
                     if found:
-                        if (debug >= 1): log_info(tag + 'Found DOMAIN ' + type + ' \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\"')
+                        if (debug >= 1): log_info(tag + 'Found DOMAIN \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\"')
                         add_cache(bw, name)
                         return True
                     elif testname.find('.') == -1:
@@ -278,7 +284,7 @@ def read_list(name, regexlist, iplist, domainlist):
                 ipcount = 0
                 domaincount = 0
                 for line in f:
-                    entry = line.strip()
+                    entry = line.strip().lower()
                     if not (exclude.match(entry)) and not (entry.startswith("#")) and not (len(entry) == 0):
                         if (isregex.match(entry)):
                             # It is an Regex
@@ -295,12 +301,12 @@ def read_list(name, regexlist, iplist, domainlist):
                                 else:
                                     entry = entry + '/128' # Single IPv6 Address
 
-                            iplist[entry.lower()] = entry
+                            iplist[entry] = entry
                             ipcount += 1
 
                         elif (isdomain.match(entry)):
                                 # It is a domain
-                                domainlist[entry.lower()] = True
+                                domainlist[entry.strip('.')] = True
                                 domaincount += 1
                         else:
                             if (debug >= 2): log_info(tag + name + ': Skipped invalid line \"' + entry + '\"')
@@ -342,7 +348,7 @@ def generate_response(qstate, rname, rtype, rrtype):
 
         if rtype in ('CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
             if rtype == 'MX':
-                fname = '1 ' + intercept_host
+                fname = '0 ' + intercept_host
             elif rtype == 'SOA':
                 serial = datetime.datetime.now().strftime("%Y%m%d%H")
                 fname = intercept_host + ' hostmaster.' + intercept_host + ' ' + serial + ' 86400 7200 3600000 120'
@@ -391,7 +397,11 @@ def init(id, cfg):
     log_info(tag + 'Initializing')
 
     # Read domains
-    read_list(whitelist_file, rwhitelist, cwhitelist, whitelist)
+    if not disablewhitelist:
+        read_list(whitelist_file, rwhitelist, cwhitelist, whitelist)
+    else:
+        if (debug >= 1): log_info(tag + 'Whitelist Disabled')
+
     read_list(blacklist_file, rblacklist, cblacklist, blacklist)
 
     # Redirect entry, we don't want to expose it
@@ -452,9 +462,9 @@ def operate(id, event, qstate, qdata):
                     blockit = True
 
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
-            if blockit or not check_name(qname, 'white', 'QUERY'):
+            if blockit or not check_name(qname, 'white', 'QUERY', qtype):
                 # Check if blacklisted, if so, genrate response accordingly
-                if blockit or check_name(qname, 'black', 'QUERY'):
+                if blockit or check_name(qname, 'black', 'QUERY', qtype):
                     blockit = True
 
                     # Create response
