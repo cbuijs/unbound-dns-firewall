@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.58-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.60-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -425,7 +425,7 @@ def client_ip(qstate):
             return reply_list.query_reply.addr
         reply_list = reply_list.next
 
-    return "?"
+    return "0.0.0.0"
 
 
 def deinit(id):
@@ -444,9 +444,16 @@ def operate(id, event, qstate, qdata):
 
     tagcount += 1
 
+    cip = client_ip(qstate)
+
     # New query or new query passed by other module
     if event == MODULE_EVENT_NEW or event == MODULE_EVENT_PASS:
-        tag = 'DNS-FIREWALL ' + client_ip(qstate) + ' QUERY (#' + str(tagcount) + '): '
+
+	if cip == '0.0.0.0':
+            qstate.ext_state[id] = MODULE_WAIT_MODULE
+            return True
+
+        tag = 'DNS-FIREWALL ' + cip + ' QUERY (#' + str(tagcount) + '): '
 
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
@@ -487,7 +494,11 @@ def operate(id, event, qstate, qdata):
 
     if event == MODULE_EVENT_MODDONE:
 
-        tag = 'DNS-FIREWALL ' + client_ip(qstate) + ' RESPONSE (#' + str(tagcount) + '): '
+	if cip == '0.0.0.0':
+            qstate.ext_state[id] = MODULE_FINISHED
+            return True
+
+        tag = 'DNS-FIREWALL ' + cip + ' RESPONSE (#' + str(tagcount) + '): '
 
         if checkresponse:
             # Do we have a message
@@ -505,6 +516,7 @@ def operate(id, event, qstate, qdata):
                     qname = qstate.qinfo.qname_str.rstrip('.').lower()
                     if qname:
                         qtype = qstate.qinfo.qtype_str.upper()
+                        if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
                         if not check_cache('white', qname):
                             if not check_cache('black', qname):
                                 # Loop through RRSets
@@ -515,7 +527,6 @@ def operate(id, event, qstate, qdata):
 
                                     # Start checking if black/whitelisted
                                     if dname:
-                                        if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + dname + '\" (RR:' + type + ')')
                                         if not check_name(dname, 'white', 'RESPONSE', type):
                                             if not check_name(dname, 'black', 'RESPONSE', type):
         
@@ -589,8 +600,6 @@ def operate(id, event, qstate, qdata):
                                             blockit = False
                                             break
 
-                                        if (debug >= 2): log_info(tag + 'Finished on \"' + dname + '\" (RR:' + type + ')')
-
                                     else:
                                         # Nothing to process
                                         blockit = False
@@ -638,6 +647,8 @@ def operate(id, event, qstate, qdata):
                             else:
                                 if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
                                 qstate.return_rcode = RCODE_REFUSED
+
+                        if (debug >= 2): log_info(tag + 'Finished on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
         # All done
         qstate.ext_state[id] = MODULE_FINISHED
