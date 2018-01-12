@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v4.55-20180111 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v4.56-20180112 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -72,7 +72,7 @@ import SubnetTree
 from expiringdict import ExpiringDict
 
 # logging tag
-tag = 'DNS-FIREWALL: '
+tag = 'DNS-FIREWALL INIT: '
 tagcount = 0
 
 # IP Address to redirect to, leave empty to generate REFUSED
@@ -120,6 +120,10 @@ ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1
 
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
+
+# Regex tp match domains/hosts in lists
+#isdomain = regex.compile('^[a-z0-9\.\-]+$', regex.I) # According RFC, Internet only
+isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
 exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', regex.I) # Bug in pysubnettree '::/8' matching IPv4 as well
@@ -294,12 +298,15 @@ def read_list(name, regexlist, iplist, domainlist):
                             iplist[entry.lower()] = entry
                             ipcount += 1
 
+                        elif (isdomain.match(entry)):
+                                # It is a domain
+                                domainlist[entry.lower()] = True
+                                domaincount += 1
                         else:
-                            # It is a domain
-                            domainlist[entry.lower()] = True
-                            domaincount += 1
+                            if (debug >= 2): log_info(tag + name + ': Skipped invalid line \"' + entry + '\"')
+                                
                     else:
-                        if (debug >= 2): log_info(tag + 'Skipped/Exclude line \"' + entry + '\"')
+                        if (debug >= 2): log_info(tag + name + ': Skipped/Exclude line \"' + entry + '\"')
 
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str (domaincount) + ' DOMAINS from file/list \"' + name + '\"')
 
@@ -345,7 +352,7 @@ def generate_response(qstate, rname, rtype, rrtype):
                 fname = intercept_host
 
             rmsg = DNSMessage(rname, rrtype, RR_CLASS_IN, PKT_QR | PKT_RA )
-            redirect = intercept_host.strip('.') + ' (' + intercept_address + ')'
+            redirect = '\"' + intercept_host.strip('.') + '\" (' + intercept_address + ')'
             rmsg.answer.append('%s %d IN %s %s' % (rname, cachettl, rtype, fname))
             qname = intercept_host
         elif rtype == 'TXT':
@@ -363,10 +370,10 @@ def generate_response(qstate, rname, rtype, rrtype):
         rmsg.set_return_msg(qstate)
 
         if not rmsg.set_return_msg(qstate):
-            log_info(tag + 'RESPONSE ERROR: ' + str(rmsg.answer))
+            log_error(tag + 'GENERATE-RESPONSE ERROR: ' + str(rmsg.answer))
             return False
 
-        if qstate.return_msg:
+        if qstate.return_msg.qinfo:
             invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
 
         qstate.no_cache_store = 0
@@ -400,7 +407,7 @@ def init(id, cfg):
         if (debug >= 1): log_info(tag + 'Blocking IPv6-Based queries')
 
 
-def clientip(qstate):
+def client_ip(qstate):
     reply_list = qstate.mesh_info.reply_list
 
     while reply_list:
@@ -408,7 +415,7 @@ def clientip(qstate):
             return reply_list.query_reply.addr
         reply_list = reply_list.next
 
-    return "0.0.0.0"
+    return "?"
 
 
 def deinit(id):
@@ -426,22 +433,22 @@ def operate(id, event, qstate, qdata):
     global tagcount
 
     tagcount += 1
-    tag = 'DNS-FIREWALL ' + clientip(qstate) + ' (#' + str(tagcount) + '): '
 
     # New query or new query passed by other module
     if event == MODULE_EVENT_NEW or event == MODULE_EVENT_PASS:
+        tag = 'DNS-FIREWALL ' + client_ip(qstate) + ' QUERY (#' + str(tagcount) + '): '
 
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
         if qname:
             qtype = qstate.qinfo.qtype_str.upper()
 
-            if (debug >= 2): log_info(tag + 'Started on QUERY \"' + qname + '\" (RR:' + qtype + ')')
+            if (debug >= 2): log_info(tag + 'Started on \"' + qname + '\" (RR:' + qtype + ')')
 
             blockit = False
             if blockv6:
                 if (qtype == 'AAAA') or (qname.find('.ip6.arpa') > 0):
-                    if (debug >= 2): log_info(tag + 'Detected IPv6-Based QUERY for \"' + qname + '\" (RR:' + qtype + ')')
+                    if (debug >= 2): log_info(tag + 'Detected IPv6 for \"' + qname + '\" (RR:' + qtype + ')')
                     blockit = True
 
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
@@ -453,13 +460,13 @@ def operate(id, event, qstate, qdata):
                     # Create response
                     target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
                     if target:
-                        if (debug >= 1): log_info(tag + 'REDIRECTED QUERY \"' + qname + '\" (RR:' + qtype + ') to ' + target)
+                        if (debug >= 1): log_info(tag + 'REDIRECTED \"' + qname + '\" (RR:' + qtype + ') to ' + target)
                         qstate.return_rcode = RCODE_NOERROR
                     else:
-                        if (debug >= 1): log_info(tag + 'REFUSED QUERY \"' + qname + '\" (RR:' + qtype + ')')
+                        if (debug >= 1): log_info(tag + 'REFUSED \"' + qname + '\" (RR:' + qtype + ')')
                         qstate.return_rcode = RCODE_REFUSED
                     
-            if (debug >= 2): log_info(tag + 'Finished on QUERY \"' + qname + '\" (RR:' + qtype + ')')
+            if (debug >= 2): log_info(tag + 'Finished on \"' + qname + '\" (RR:' + qtype + ')')
             if blockit:
                 qstate.ext_state[id] = MODULE_FINISHED
                 return True
@@ -469,6 +476,8 @@ def operate(id, event, qstate, qdata):
         return True
 
     if event == MODULE_EVENT_MODDONE:
+
+        tag = 'DNS-FIREWALL ' + client_ip(qstate) + ' RESPONSE (#' + str(tagcount) + '): '
 
         if checkresponse:
             # Do we have a message
@@ -538,9 +547,9 @@ def operate(id, event, qstate, qdata):
     
                                                         # If we have a name, process it
                                                         if name:
-                                                            if (debug >= 2): log_info(tag + 'Checking RESPONSE \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
+                                                            if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
                                                             if blockv6 and ip6:
-                                                                if (debug >= 2): log_info(tag + 'Detected IPv6-Based RESPONSE for \"' + name + '\" (RR:' + type + ')')
+                                                                if (debug >= 2): log_info(tag + 'Detected IPv6 for \"' + name + '\" (RR:' + type + ')')
                                                                 blockit = True
                                                                 break
 
@@ -557,7 +566,7 @@ def operate(id, event, qstate, qdata):
                                                                 break
                                                     else:
                                                         # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
-                                                        if (debug >=2): log_info(tag + 'Ignoring RESPONSE RR-type ' + type)
+                                                        if (debug >=2): log_info(tag + 'Ignoring RR-type ' + type)
                                                         blockit = False
 
                                             else:
@@ -570,7 +579,7 @@ def operate(id, event, qstate, qdata):
                                             blockit = False
                                             break
 
-                                        if (debug >= 2): log_info(tag + 'Finished on RESPONSE \"' + dname + '\" (RR:' + type + ')')
+                                        if (debug >= 2): log_info(tag + 'Finished on \"' + dname + '\" (RR:' + type + ')')
 
                                     else:
                                         # Nothing to process
@@ -614,10 +623,10 @@ def operate(id, event, qstate, qdata):
                             # Generate response based on query-name
                             target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
                             if target:
-                                if (debug >= 1): log_info(tag + 'REDIRECTED RESPONSE \"' + lname + '\" (RR:' + rtype + ') to ' + target)
+                                if (debug >= 1): log_info(tag + 'REDIRECTED \"' + lname + '\" (RR:' + rtype + ') to ' + target)
                                 qstate.return_rcode = RCODE_NOERROR
                             else:
-                                if (debug >= 1): log_info(tag + 'REFUSED RESPONSE \"' + lname + '\" (RR:' + rtype + ')')
+                                if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
                                 qstate.return_rcode = RCODE_REFUSED
 
         # All done
