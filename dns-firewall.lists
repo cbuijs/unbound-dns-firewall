@@ -1,3 +1,13 @@
+# Syntax:
+# <Name>,<black|white>,<file|url>,[savefile[,listage[,filter-regex]]]
+#
+# <Name> - Name/Identifier for logging/naming purposes
+# <black|white> - Blacklist or Whitelist
+# <file|url> - File or URL containing list
+# [savefile] - File to save/cache (processed) list to, when not specified, the name plus extension ".list' will be used
+# [listage] - Minimum age (in seconds) of savefile before refresh/download, when not specified, 24 hours will be used
+# [filter-regex] - Regex to grab domain/ip with, use "(?P<entry> ...)" group-identifier to indentify/anchor, when not specified the whole line will be used.
+
 # Local lists
 #whitelist	white	/etc/unbound/whitelist
 #blacklist	black	/etc/unbound/blacklist
