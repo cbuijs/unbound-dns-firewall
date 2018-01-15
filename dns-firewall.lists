@@ -1,3 +1,10 @@
+# Local lists
+#whitelist	white	/etc/unbound/whitelist
+#blacklist	black	/etc/unbound/blacklist
+Regex-White	white	/etc/unbound/regex-whitelist
+Regex-Black	black	/etc/unbound/regex-blacklist
+
+# Internet based lists
 Adguard-Android	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/android.txt	/etc/unbound/adguard-android.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Adguard-Banks	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/banks.txt	/etc/unbound/adguard-banks.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Adguard-FireFox	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/firefox.txt	/etc/unbound/adguard-firefox.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
@@ -16,8 +23,6 @@ Krogza-Hacked	black	https://raw.githubusercontent.com/mitchellkrogza/The-Big-Lis
 NoCoin	black	https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt	/etc/unbound/nocoin.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
 Notracking-Domains	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/domains.txt	/etc/unbound/notracking-domains.list	86400	^address=/(?P<entry>[^/]+)
 Notracking-Hosts	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt	/etc/unbound/notracking-hosts.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
-Regex-White	white	/etc/unbound/regex-whitelist
-Regex-Black	black	/etc/unbound/regex-blacklist
 SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc/unbound/spamhaus-top10-botnet.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
 SpamHaus-Top10-TLD	black	https://www.spamhaus.org/statistics/tlds/	/etc/unbound/spamhaus-top10-tld.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
 Steven-Black	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts	/etc/unbound/stevenblack.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
