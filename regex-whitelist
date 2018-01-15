@@ -1,0 +1,11 @@
+# Google
+/^(.*\.)*(clients[0-9]+|encrypted|imap|mail|payments|play|pop|smtp|wallet|www)\.google\.com$/
+/^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail)\.l\.google\.com/
+/^(imap|pop|smtp)\.gmail\.com$/
+/^.*-pa.googleapis\.com$/
+/^(.*\.)*gvt[1-3]\.com$/
+# Apple
+/^.*(apple|icloud|itunes)\.com$/
+/^.*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/
+/^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/
+/^(.*\.)*itunes(essentials|festivals|match|su)\.com$/
