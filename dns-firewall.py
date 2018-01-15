@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.21-20180115 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.23-20180115 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -146,23 +146,23 @@ exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', 
 #########################################################################################
 
 # Check against lists
-def check_name(name, bw, type, rrtype='ALL'):
+def in_list(name, bw, type, rrtype='ALL'):
     if (bw == 'white') and disablewhitelist:
         return False
 
-    if blockv6 and ((rrtype == 'AAAA') or (name.find('.ip6.arpa') > 0)):
+    if blockv6 and ((rrtype == 'AAAA') or name.endswith('.ip6.arpa')):
         if (bw == 'black'):
              if (debug >= 2): log_info(tag + 'HIT on IPv6 for \"' + name + '\" (RR:' + rrtype + ')')
              return True
 
-    if not check_cache('white', name):
-        if not check_cache(bw, name):
+    if not in_cache('white', name):
+        if not in_cache(bw, name):
             # Check for IP's
             if (type == 'RESPONSE') and rrtype in ('A', 'AAAA'):
                 cidr = check_ip(name,bw)
                 if cidr:
                     if (debug >= 2): log_info(tag + 'HIT on IP \"' + name + '\" in ' + bw + '-listed network ' + cidr)
-                    add_cache(bw, name, cidr)
+                    add_to_cache(bw, name, cidr)
                     return True
                 else:
                     return False
@@ -182,7 +182,7 @@ def check_name(name, bw, type, rrtype='ALL'):
 
                     if found:
                         if (debug >= 2): log_info(tag + 'HIT on DOMAIN \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\" (' + str(id) + ')')
-                        add_cache(bw, name, testname)
+                        add_to_cache(bw, name, testname)
                         return True
                     elif testname.find('.') == -1:
                         break
@@ -194,7 +194,7 @@ def check_name(name, bw, type, rrtype='ALL'):
             foundregex = check_regex(name, bw)
             if foundregex:
                 if (debug >= 2): log_info(tag + 'HIT on \"' + name + '\", matched against ' + bw + '-regex ' + foundregex +'')
-                add_cache(bw, name)
+                add_to_cache(bw, name)
                 return True
 
         else:
@@ -207,7 +207,7 @@ def check_name(name, bw, type, rrtype='ALL'):
     return False
 
 # Check cache
-def check_cache(bw, name):
+def in_cache(bw, name):
     if (bw == 'black'):
         if name in blackcache:
             if (debug >= 2): log_info(tag + 'Found \"' + name + '\" in black-cache')
@@ -221,10 +221,10 @@ def check_cache(bw, name):
 
 
 # Add to cache
-def add_cache(bw, name, listentry=False):
+def add_to_cache(bw, name, listentry=False):
 
     if autoreverse:
-        addarpa = revip(name)
+        addarpa = rev_ip(name)
     else:
         addarpa = False
 
@@ -247,7 +247,7 @@ def add_cache(bw, name, listentry=False):
     return True
 
 
-# Check against IP lists (called from check_name)
+# Check against IP lists (called from in_list)
 def check_ip(ip, bw):
     if (bw == 'black'):
 	if ip in cblacklist:
@@ -259,7 +259,7 @@ def check_ip(ip, bw):
     return False
 
 
-# Check against REGEX lists (called from check_name)
+# Check against REGEX lists (called from in_list)
 def check_regex(name, bw):
     if (bw == 'black'):
         rlist = rblacklist
@@ -276,7 +276,7 @@ def check_regex(name, bw):
 
 
 # Generate Reverse IP (arpa) domain
-def revip(ip):
+def rev_ip(ip):
     if ipregex.match(ip):
         if ip.find(':') == -1:
             arpa = '.'.join(ip.split('.')[::-1]) + '.in-addr.arpa'  # Add IPv4 in-addr.arpa
@@ -354,7 +354,7 @@ def read_list(id, name, regexlist, iplist, domainlist):
 
 
 # Decode names/strings from response message
-def decodedata(rawdata, start):
+def decode_data(rawdata, start):
     text = ''
     remain = ord(rawdata[2])
     for c in rawdata[3+start:]:
@@ -369,7 +369,7 @@ def decodedata(rawdata, start):
 
 # Generate response DNS message
 def generate_response(qstate, rname, rtype, rrtype):
-    if blockv6 and ((rtype == 'AAAA') or (rname.find('.ip6.arpa') > 0)):
+    if blockv6 and ((rtype == 'AAAA') or rname.endswith('.ip6.arpa')):
         if (debug >= 3): log_info(tag + 'GR: HIT on IPv6 for \"' + rname + '\" (RR:' + rtype + ')')
         return False
 
@@ -422,8 +422,8 @@ def generate_response(qstate, rname, rtype, rrtype):
     return False
 
 
-# Simple string reverser
-def reverse(s):
+# Simple string reverser, reverse string and add tic-tac-toe-grid (#) to start, and reverse it
+def reverse_hash(s):
     if s.find('#') == -1:
         s = '#' + s[::-1]
     else:
@@ -437,8 +437,8 @@ def optimize_domlist(name, bw, listname):
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
 
     # Get all keys (=domains) into a sorted/uniqued list
-    #list = sorted(set(map(reverse, name.keys()))) # uniq/set not needed due to dict
-    list = sorted(map(reverse, name.keys()))
+    #list = sorted(set(map(reverse_hash, name.keys()))) # uniq/set not needed due to dict
+    list = sorted(map(reverse_hash, name.keys()))
 
     # Remove all subdomains
     parent = None
@@ -448,9 +448,9 @@ def optimize_domlist(name, bw, listname):
             undupped.add(domain)
             parent = domain + '.'
         else:
-            if (debug >= 3): log_info(tag + '\"' + listname + '\": Removed domain \"' + reverse(domain) + '\" redundant by parent \"' + reverse(parent).strip('.') + '\"')
+            if (debug >= 3): log_info(tag + '\"' + listname + '\": Removed domain \"' + reverse_hash(domain) + '\" redundant by parent \"' + reverse_hash(parent).strip('.') + '\"')
 
-    undupped = map(reverse, undupped)
+    undupped = map(reverse_hash, undupped)
 
     # New/Work dictionary
     new = dict()
@@ -477,26 +477,27 @@ def optimize_domlist(name, bw, listname):
 def uncomplicate_list(wlist, blist):
     log_info(tag + 'Uncomplicating black/whitelists')
 
-    listw = sorted(map(reverse, wlist.keys()))
-    listb = sorted(map(reverse, blist.keys()))
+    listw = sorted(map(reverse_hash, wlist.keys()))
+    listb = sorted(map(reverse_hash, blist.keys()))
 
     for domain in listw:
         if domain in listb:
-            if (debug >= 3): log_info(tag + 'Removed witelisted blacklist-entry \"' + reverse(domain) + '\"')
+            if (debug >= 3): log_info(tag + 'Removed witelisted blacklist-entry \"' + reverse_hash(domain) + '\"')
             listb.remove(domain)
         else:
             parent = domain + '.'
             for found in filter(lambda x: parent in x, listb):
-                if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse(found) + '\" due to whitelisted parent \"' + reverse(domain) + '\"')
+                if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse_hash(found) + '\" due to whitelisted parent \"' + reverse_hash(domain) + '\"')
                 listb.remove(found)
                 
-    listb = sorted(map(reverse, listb))
+    listb = sorted(map(reverse_hash, listb))
 
     # !!! TODO: Do same here as in unreg_list but use whitelist-regex as input to process listb !!!
+    # !!! Add logging !!!
     for i in range(0,len(rwhitelist)/3):
         checkregex = rwhitelist[i,1]
         if (debug >= 2): log_info(tag + 'Checking against white-regex \"' + rwhitelist[i,2] + '\"')
-	for found in filter(checkregex.search, listb):
+        for found in filter(checkregex.search, listb):
             listb.remove(found)
             if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
 
@@ -610,6 +611,9 @@ def init(id, cfg):
         }
 
     # Read Lists
+
+    # !!! TODO Here, check if save-files exists, not expired, load them in as-is when valid. Much quicker and skip processing.
+
     try:
         with open(lists, 'r') as f:
             for line in f:
@@ -786,9 +790,9 @@ def operate(id, event, qstate, qdata):
             blockit = False
 
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
-            if blockit or not check_name(qname, 'white', 'QUERY', qtype):
+            if blockit or not in_list(qname, 'white', 'QUERY', qtype):
                 # Check if blacklisted, if so, genrate response accordingly
-                if blockit or check_name(qname, 'black', 'QUERY', qtype):
+                if blockit or in_list(qname, 'black', 'QUERY', qtype):
                     blockit = True
 
                     # Create response
@@ -834,8 +838,8 @@ def operate(id, event, qstate, qdata):
                     if qname:
                         qtype = qstate.qinfo.qtype_str.upper()
                         if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
-                        if not check_cache('white', qname):
-                            if not check_cache('black', qname):
+                        if not in_cache('white', qname):
+                            if not in_cache('black', qname):
                                 # Loop through RRSets
                                 for i in range(0,rep.an_numrrsets):
                                     rk = rep.rrsets[i].rk
@@ -844,8 +848,8 @@ def operate(id, event, qstate, qdata):
 
                                     # Start checking if black/whitelisted
                                     if dname:
-                                        if not check_name(dname, 'white', 'RESPONSE', type):
-                                            if not check_name(dname, 'black', 'RESPONSE', type):
+                                        if not in_list(dname, 'white', 'RESPONSE', type):
+                                            if not in_list(dname, 'black', 'RESPONSE', type):
         
                                                 # Not listed yet, lets get data
                                                 data = rep.rrsets[i].entry.data
@@ -864,15 +868,15 @@ def operate(id, event, qstate, qdata):
                                                         elif type == 'AAAA':
                                                             name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
                                                         elif type in ('CNAME', 'NS'):
-                                                            name = decodedata(answer,0)
+                                                            name = decode_data(answer,0)
                                                         elif type == 'MX':
-                                                            name = decodedata(answer,1)
+                                                            name = decode_data(answer,1)
                                                         elif type == 'PTR':
-                                                            name = decodedata(answer,0)
+                                                            name = decode_data(answer,0)
                                                         elif type == 'SOA':
-                                                            name = decodedata(answer,0).split(' ')[0][0].strip('.')
+                                                            name = decode_data(answer,0).split(' ')[0][0].strip('.')
                                                         elif type == 'SRV':
-                                                            name = decodedata(answer,5)
+                                                            name = decode_data(answer,5)
                                                         else:
                                                             # Not supported
                                                             name = False
@@ -881,9 +885,9 @@ def operate(id, event, qstate, qdata):
                                                         if name:
                                                             if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
                                                             # Not Whitelisted?
-                                                            if not check_name(name, 'white', 'RESPONSE', type):
+                                                            if not in_list(name, 'white', 'RESPONSE', type):
                                                                 # Blacklisted?
-                                                                if check_name(name, 'black', 'RESPONSE', type):
+                                                                if in_list(name, 'black', 'RESPONSE', type):
                                                                     blockit = True
                                                                     break
     
@@ -932,8 +936,8 @@ def operate(id, event, qstate, qdata):
                                 rtype = type
 
                                 # Add query-name to black-cache
-                                if not check_cache('black', qname):
-                                    add_cache('black', qname)
+                                if not in_cache('black', qname):
+                                    add_to_cache('black', qname)
  
                             else:
                                 # Block based on query
@@ -942,8 +946,8 @@ def operate(id, event, qstate, qdata):
                                 rtype = qtype
 
                             # Add response-name to the black-cache
-                            if not check_cache('black', rname):
-                                add_cache('black', rname)
+                            if not in_cache('black', rname):
+                                add_to_cache('black', rname)
 
                             # Generate response based on query-name
                             target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
