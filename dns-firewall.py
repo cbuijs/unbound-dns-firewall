@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.11-20180114 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.2-20180115 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -122,9 +122,6 @@ autoreverse = True
 
 # Block IPv6 queries/responses
 blockv6 = True
-
-# Uncomplicate lists, e.g. remove blacklisted entries that are whitelisted (uses loads of time/CPU)
-uncomplicate = False
 
 # Default maximum age of downloaded lists, can be overruled in lists file
 maxlistage = 86400 # In seconds
@@ -269,7 +266,7 @@ def check_regex(name, bw):
     else:
         rlist = rwhitelist
 
-    for i in range(0,len(rlist)/3-1):
+    for i in range(0,len(rlist)/3):
         checkregex = rlist[i,1]
         if (debug >= 3): log_info(tag + 'Checking ' + name + ' against regex \"' + rlist[i,2] + '\"')
         if checkregex.search(name):
@@ -475,12 +472,8 @@ def optimize_domlist(name, bw, listname):
 
     return False
 
-
 # Uncomplicate lists, removed whitelisted blacklist entries
 def uncomplicate_list(wlist, blist):
-    if not uncomplicate:
-        return False
-
     log_info(tag + 'Uncomplicating black/whitelists')
 
     listw = sorted(map(reverse, wlist.keys()))
@@ -488,14 +481,16 @@ def uncomplicate_list(wlist, blist):
 
     for domain in listw:
         if domain in listb:
-            if (debug >= 2): log_info(tag + 'Removed witelisted blacklist-entry \"' + reverse(domain) + '\"')
+            if (debug >= 3): log_info(tag + 'Removed witelisted blacklist-entry \"' + reverse(domain) + '\"')
             listb.remove(domain)
         else:
             parent = domain + '.'
             for found in filter(lambda x: parent in x, listb):
-                if (debug >= 2): log_info(tag + 'Removed blacklist-entry \"' + reverse(found) + '\" due to whitelisted parent \"' + reverse(domain) + '\"')
+                if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse(found) + '\" due to whitelisted parent \"' + reverse(domain) + '\"')
                 listb.remove(found)
                 
+    # !!! TODO: Do same here as in unreg_list but use whitelist-regex as input to process listb !!!
+
     listb = sorted(map(reverse, listb))
 
     # New/Work dictionary
@@ -512,6 +507,91 @@ def uncomplicate_list(wlist, blist):
 
     if (debug >= 2): log_info(tag + 'Number of blocklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
     return True
+
+
+# Remove entries from domains already matchin regex
+def unreg_list(dlist, rlist, listname):
+    log_info(tag + 'Unregging \"' + listname + '\"')
+
+    count = 0
+    for i in range(0,len(rlist)/3):
+        checkregex = rlist[i,1]
+        if (debug >= 2): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
+	for found in filter(checkregex.search, dlist):
+            count += 1
+            list = dlist.pop(found, None)
+            if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + list + '\", already matched by regex \"' + rlist[i,2] + '\"')
+
+    if (debug >= 2): log_info(tag + 'Removed ' + str(count) + ' entries from \"' + listname + '\"')
+    return True
+
+
+# Save lists
+# !!!! NEEDS WORK AND SIMPLIFIED, NO IPV6 SAVED !!!!
+def write_out(whitefile, blackfile):
+    log_info(tag + 'Saving processed lists to \"' + whitefile + '\" and \"' + blackfile + '\"')
+    try:
+        with open(whitefile, 'w') as f:
+            f.write('### WHITELIST REGEXES ###\n')
+            for line in range(0,len(rwhitelist)/3):
+                f.write('/' + rwhitelist[line,2] + '/')
+                f.write('\n')
+
+            f.write('### WHITELIST DOMAINS ###\n')
+            for line in sorted(whitelist.keys()):
+                f.write(line)
+                f.write('\n')
+
+            # !!! ONLY IPv4 using a hack with prefixes, NEEDS WORK !!!
+            f.write('### WHITELIST CIDRs ###\n')
+            for a in sorted(cwhitelist.prefixes()):
+                if a.find('::ffff:') == 0:
+                    prefix = a.split(':')[3]
+                    address = prefix.split('/')[0]
+                    bits = str(int(prefix.split('/')[1]) - 96)
+                    f.write(address + '/' + bits)
+                else:
+                    f.write(a)
+
+                f.write('\n')
+
+            f.write('### WHITELIST EOF ###\n')
+
+    except IOError:
+        log_err(tag + 'Unable to write to file \"' + whitefile + '\"')
+
+    try:
+        with open(blackfile, 'w') as f:
+            f.write('### BLACKLIST REGEXES ###\n')
+            for line in range(0,len(rblacklist)/3):
+                f.write('/' + rblacklist[line,2] + '/')
+                f.write('\n')
+
+            f.write('### BLACKLIST DOMAINS ###\n')
+            for line in sorted(blacklist.keys()):
+                f.write(line)
+                f.write('\n')
+
+            # !!! ONLY IPv4 using a hack with prefixes, NEEDS WORK !!!
+            f.write('### BLACKLIST CIDRs ###\n')
+            for a in sorted(cblacklist.prefixes()):
+                if a.find('::ffff:') == 0:
+                    prefix = a.split(':')[3]
+                    address = prefix.split('/')[0]
+                    bits = str(int(prefix.split('/')[1]) - 96)
+                    f.write(address + '/' + bits)
+                else:
+                    f.write(a)
+
+                f.write('\n')
+
+            f.write('### BLACKLIST EOF ###\n')
+
+    except IOError:
+        log_err(tag + 'Unable to write to file \"' + blackfile + '\"')
+
+    return True
+
 
 # Initialization
 def init(id, cfg):
@@ -612,15 +692,28 @@ def init(id, cfg):
     # Redirect entry, we don't want to expose it
     blacklist[intercept_host.strip('.')] = True
 
+    #regexcount = str(len(whitelist)/3-1)
+    #ipcount = str(len(cwhitelist))
+    #domaincount = str(len(whitelist))
+    #if (debug >= 1): log_info(tag + 'Total Whitelist entries fetched: ' + regexcount + ' REGEXES, ' + ipcount + ' CIDRS and ' + domaincount + ' DOMAINS')
+    #regexcount = str(len(blacklist)/3-1)
+    #ipcount = str(len(cblacklist))
+    #domaincount = str(len(blacklist))
+    #if (debug >= 1): log_info(tag + 'Total Blacklist entries fetched: ' + regexcount + ' REGEXES, ' + ipcount + ' CIDRS and ' + domaincount + ' DOMAINS')
+
     # Optimize/Aggregate domain lists (remove sub-domains is parent exists)
     optimize_domlist(whitelist, 'white', 'WhiteDoms')
     optimize_domlist(blacklist, 'black', 'BlackDoms')
 
+    # Cleanup/Uncomplicate domain lists
+    #uncomplicate_list(whitelist, blacklist)
+    unreg_list(whitelist, rwhitelist, 'WhiteDoms')
+    unreg_list(blacklist, rblacklist, 'BlackDoms')
+
+    write_out('/etc/unbound/whitelist.save','/etc/unbound/blacklist.save')
+
     # Clean-up after ourselfs
     gc.collect()
-
-    # Cleanup lists
-    uncomplicate_list(whitelist, blacklist)
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
