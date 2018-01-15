@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.0-20180113 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.11-20180114 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -53,14 +53,21 @@ Install and configure:
 TODO:
 
 - Better Documentation / Remarks / Comments
-- Feature to configure if whitelist or blacklist has precedence (now whitelist has)
 
 =========================================================================================
 '''
 
+# Standard/Included modules
+import os, os.path, sys, commands, datetime, gc
+
 # make sure modules can be found
-import sys, commands, datetime
 sys.path.append("/usr/local/lib/python2.7/dist-packages/")
+
+# Enable Garbage collection
+gc.enable()
+
+# Use requests module for downloading lists
+import requests
 
 # Use module regex
 import regex
@@ -85,7 +92,9 @@ intercept_host = 'dns-firewall.redirected.'
 # - A CIDR-Address/Network, Like: 192.168.1.0/24
 # - A Regex (start and end with forward-slash), Like: /^ad[sz]\./
 # - A Domain name, Like: bad.company.com
-# Lists file
+
+# Lists file to configure which lists to use, one list per line, syntax:
+# <Identifier>,<black|white>,<filename|url>[,savefile[,maxlistage[,regex]]]
 lists = '/etc/unbound/dns-firewall.lists'
 
 # Lists
@@ -114,6 +123,12 @@ autoreverse = True
 # Block IPv6 queries/responses
 blockv6 = True
 
+# Uncomplicate lists, e.g. remove blacklisted entries that are whitelisted (uses loads of time/CPU)
+uncomplicate = False
+
+# Default maximum age of downloaded lists, can be overruled in lists file
+maxlistage = 86400 # In seconds
+
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
 debug = 2
@@ -124,7 +139,7 @@ ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
 
-# Regex tp match domains/hosts in lists
+# Regex to match domains/hosts in lists
 #isdomain = regex.compile('^[a-z0-9\.\-]+$', regex.I) # According RFC, Internet only
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
@@ -133,17 +148,15 @@ exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', 
 
 #########################################################################################
 
-# Check against domain lists
+# Check against lists
 def check_name(name, bw, type, rrtype='ALL'):
     if (bw == 'white') and disablewhitelist:
         return False
 
     if blockv6 and ((rrtype == 'AAAA') or (name.find('.ip6.arpa') > 0)):
         if (bw == 'black'):
-             if (debug >= 2): log_info(tag + 'Detected IPv6 for \"' + name + '\" (RR:' + rrtype + ')')
+             if (debug >= 2): log_info(tag + 'HIT on IPv6 for \"' + name + '\" (RR:' + rrtype + ')')
              return True
-        else:
-             return False
 
     if not check_cache('white', name):
         if not check_cache(bw, name):
@@ -151,8 +164,8 @@ def check_name(name, bw, type, rrtype='ALL'):
             if (type == 'RESPONSE') and rrtype in ('A', 'AAAA'):
                 cidr = check_ip(name,bw)
                 if cidr:
-                    if (debug >= 1): log_info(tag + 'HIT on IP \"' + name + '\" in ' + bw + '-listed network ' + cidr)
-                    add_cache(bw, name)
+                    if (debug >= 2): log_info(tag + 'HIT on IP \"' + name + '\" in ' + bw + '-listed network ' + cidr)
+                    add_cache(bw, name, cidr)
                     return True
                 else:
                     return False
@@ -171,8 +184,8 @@ def check_name(name, bw, type, rrtype='ALL'):
                              id = whitelist[testname]
 
                     if found:
-                        if (debug >= 1): log_info(tag + 'HIT on DOMAIN \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\" (' + str(id) + ')')
-                        add_cache(bw, name)
+                        if (debug >= 2): log_info(tag + 'HIT on DOMAIN \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\" (' + str(id) + ')')
+                        add_cache(bw, name, testname)
                         return True
                     elif testname.find('.') == -1:
                         break
@@ -181,7 +194,7 @@ def check_name(name, bw, type, rrtype='ALL'):
                         if (debug >= 3): log_info(tag + 'Checking for ' + bw + '-listed parent domain \"' + testname + '\"')
 
             # Match against Regex-es
-            foundregex = check_regex(name, bw, type, rrtype)
+            foundregex = check_regex(name, bw)
             if foundregex:
                 if (debug >= 2): log_info(tag + 'HIT on \"' + name + '\", matched against ' + bw + '-regex ' + foundregex +'')
                 add_cache(bw, name)
@@ -195,7 +208,6 @@ def check_name(name, bw, type, rrtype='ALL'):
             return True
 
     return False
-
 
 # Check cache
 def check_cache(bw, name):
@@ -212,7 +224,7 @@ def check_cache(bw, name):
 
 
 # Add to cache
-def add_cache(bw, name):
+def add_cache(bw, name, listentry=False):
 
     if autoreverse:
         addarpa = revip(name)
@@ -230,12 +242,6 @@ def add_cache(bw, name):
     else:
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to white-cache')
        whitecache[name] = True
-
-       ## Cleanup, maybe redundant
-       #if (name in blackcache):
-       #    blackcache.pop(name)
-       #if (name in blacklist):
-       #    blacklist.pop(name)
 
        if addarpa:
            if (debug >= 2): log_info(tag + 'Auto-Generated/Added \"' + addarpa + '\" (' + name + ') to white-cache')
@@ -257,7 +263,7 @@ def check_ip(ip, bw):
 
 
 # Check against REGEX lists (called from check_name)
-def check_regex(name, bw, type, rrtype='ALL'):
+def check_regex(name, bw):
     if (bw == 'black'):
         rlist = rblacklist
     else:
@@ -272,7 +278,7 @@ def check_regex(name, bw, type, rrtype='ALL'):
     return False
 
 
-# Reverse IP (arpa)
+# Generate Reverse IP (arpa) domain
 def revip(ip):
     if ipregex.match(ip):
         if ip.find(':') == -1:
@@ -292,60 +298,62 @@ def read_list(id, name, regexlist, iplist, domainlist):
         try:
             with open(name, 'r') as f:
                 log_info(tag + 'Reading file/list \"' + name + '\" (' + id + ')')
+         
                 orgregexcount = (len(regexlist)/3-1)+1
                 regexcount = orgregexcount
                 ipcount = 0
                 domaincount = 0
+
                 for line in f:
                     entry = line.strip()
-                    if not (exclude.match(entry)) and not (entry.startswith("#")) and not (len(entry) == 0):
-                        if (isregex.match(entry)):
-                            # It is an Regex
-                            cleanregex = entry.strip('/')
-                            regexlist[regexcount,0] = str(id)
-                            regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
-                            regexlist[regexcount,2] = cleanregex
-                            regexcount += 1
+                    if not (entry.startswith("#")) and not (len(entry) == 0):
+                        if not (exclude.match(entry)):
 
-                        elif (ipregex.match(entry)):
-                            # It is an IP
-                            if checkresponse:
-                                if blockv6:
-                                    if entry.find(':') > 0:
-					entry = False
-                                else:
-                                    if entry.find('/') == -1: # Check if Single IP or CIDR already
-                                        if entry.find(':') == -1:
-                                            entry = entry + '/32' # Single IPv4 Address
-                                        else:
-                                            entry = entry + '/128' # Single IPv6 Address
+                            if (isregex.match(entry)):
+                                # It is an Regex
+                                cleanregex = entry.strip('/')
+                                regexlist[regexcount,0] = str(id)
+                                regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
+                                regexlist[regexcount,2] = cleanregex
+                                regexcount += 1
 
-                                if entry:
-                                    iplist[entry.lower()] = '\"' + entry.lower() + '\" (' + str(id) + ')'
-                                    ipcount += 1
+                            elif (ipregex.match(entry)):
+                                # It is an IP
+                                if checkresponse:
+                                    if blockv6:
+                                        if entry.find(':') > 0:
+                                            entry = False
+                                    else:
+                                        if entry.find('/') == -1: # Check if Single IP or CIDR already
+                                            if entry.find(':') == -1:
+                                                entry = entry + '/32' # Single IPv4 Address
+                                            else:
+                                                entry = entry + '/128' # Single IPv6 Address
 
-                        elif (isdomain.match(entry)):
-                                # It is a domain
-                                #domainlist[entry.strip('.').lower()] = True
-                                domainlist[entry.strip('.').lower()] = str(id)
-                                domaincount += 1
+                                    if entry:
+                                        iplist[entry.lower()] = '\"' + entry.lower() + '\" (' + str(id) + ')'
+                                        ipcount += 1
+
+                            elif (isdomain.match(entry)):
+                                    # It is a domain
+                                    #domainlist[entry.strip('.').lower()] = True
+                                    domainlist[entry.strip('.').lower()] = str(id)
+                                    domaincount += 1
+                            else:
+                                log_err(tag + name + ': Invalid line \"' + entry + '\"')
+                            
                         else:
-                            if (debug >= 2): log_err(tag + name + ': Skipped invalid line \"' + entry + '\"')
-                                
-                    else:
-                        if (debug >= 2): log_info(tag + name + ': Skipped/Exclude line \"' + entry + '\"')
+                            if (debug >= 2): log_info(tag + name + ': Excluded line \"' + entry + '\"')
+
 
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from file/list \"' + name + '\"')
 
-            return True
+                return True
 
         except IOError:
             log_err(tag + 'Unable to open file ' + name)
 
-        return False
-
-    else:
-        return True
+    return False
 
 
 # Decode names/strings from response message
@@ -365,7 +373,7 @@ def decodedata(rawdata, start):
 # Generate response DNS message
 def generate_response(qstate, rname, rtype, rrtype):
     if blockv6 and ((rtype == 'AAAA') or (rname.find('.ip6.arpa') > 0)):
-        if (debug >= 3): log_info(tag + 'GR: Detected IPv6 for \"' + rname + '\" (RR:' + rtype + ')')
+        if (debug >= 3): log_info(tag + 'GR: HIT on IPv6 for \"' + rname + '\" (RR:' + rtype + ')')
         return False
 
     if (len(intercept_address) > 0 and len(intercept_host) > 0) and (rtype in ('A', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT', 'ANY')):
@@ -417,28 +425,36 @@ def generate_response(qstate, rname, rtype, rrtype):
     return False
 
 
+# Simple string reverser
 def reverse(s):
-    return s[::-1]
+    if s.find('#') == -1:
+        s = '#' + s[::-1]
+    else:
+        s = s[::-1]
+
+    return s.rstrip('#')
 
 
-def optimize_domlist(name,listname):
+# Domain aggregator, removes subdomains if parent exists
+def optimize_domlist(name, bw, listname):
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
 
-    # Get all keys (=domains) into a list
+    # Get all keys (=domains) into a sorted/uniqued list
+    #list = sorted(set(map(reverse, name.keys()))) # uniq/set not needed due to dict
     list = sorted(map(reverse, name.keys()))
 
     # Remove all subdomains
     parent = None
-    undupped = []
+    undupped = set()
     for domain in list:
         if not parent or not domain.startswith(parent):
-            undupped.append(domain)
-            parent = domain + "."
+            undupped.add(domain)
+            parent = domain + '.'
         else:
-            if (debug >= 2): log_info(tag + 'Removing \"' + reverse(domain) + '\" due existance of parent \"' + reverse(parent).strip('.') + '\"')
+            if (debug >= 3): log_info(tag + '\"' + listname + '\": Removed domain \"' + reverse(domain) + '\" redundant by parent \"' + reverse(parent).strip('.') + '\"')
 
     undupped = map(reverse, undupped)
-    
+
     # New/Work dictionary
     new = dict()
 
@@ -452,7 +468,7 @@ def optimize_domlist(name,listname):
     after = len(name)
     count = after - before
 
-    log_info(tag + '\"' + listname + '\": Number of domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ') entries')
+    if (debug >= 2): log_info(tag + '\"' + listname + '\": Number of domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
     if (count > 0):
         return True
@@ -460,9 +476,50 @@ def optimize_domlist(name,listname):
     return False
 
 
+# Uncomplicate lists, removed whitelisted blacklist entries
+def uncomplicate_list(wlist, blist):
+    if not uncomplicate:
+        return False
+
+    log_info(tag + 'Uncomplicating black/whitelists')
+
+    listw = sorted(map(reverse, wlist.keys()))
+    listb = sorted(map(reverse, blist.keys()))
+
+    for domain in listw:
+        if domain in listb:
+            if (debug >= 2): log_info(tag + 'Removed witelisted blacklist-entry \"' + reverse(domain) + '\"')
+            listb.remove(domain)
+        else:
+            parent = domain + '.'
+            for found in filter(lambda x: parent in x, listb):
+                if (debug >= 2): log_info(tag + 'Removed blacklist-entry \"' + reverse(found) + '\" due to whitelisted parent \"' + reverse(domain) + '\"')
+                listb.remove(found)
+                
+    listb = sorted(map(reverse, listb))
+
+    # New/Work dictionary
+    new = dict()
+
+    # Build new dictionary preserving id/category
+    for domain in listb:
+        new[domain] = blist[domain]
+
+    before = len(blist)
+    blist = new
+    after = len(blist)
+    count = after - before
+
+    if (debug >= 2): log_info(tag + 'Number of blocklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
+    return True
+
 # Initialization
 def init(id, cfg):
     log_info(tag + 'Initializing')
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
+        }
 
     # Read Lists
     try:
@@ -470,12 +527,84 @@ def init(id, cfg):
             for line in f:
                 entry = line.strip()
                 if not (entry.startswith("#")) and not (len(entry) == 0):
-                    id, bw, file = entry.split(',')
-                    if bw == 'black':
-                        read_list(id, file, rblacklist, cblacklist, blacklist)
+                    element = entry.split('\t')
+                    if len(element) > 2:
+                        id = element[0]
+                        bw = element[1]
+                        file = element[2]
+                        if (file.find('http://') == 0) or (file.find('https://') == 0):
+                            url = file
+                            if len(element) > 3:
+                                file = element[3]
+                            else:
+                                file = '/etc/unbound/' + id.strip('.').lower() + ".list"
+
+                            if len(element) > 4:
+                                filettl = int(element[4])
+                            else:
+                                filettl = maxlistage
+
+                            fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
+                            if len(element) > 5:
+                                r = element[5]
+                                if fregex.find('(?P<entry>') == -1:
+                                    log_err(tag + 'Regex \"' + fregex + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
+                                else:
+                                    fregex = r
+
+                            fexists = False
+                            mtime = 946702800 # 1-Jan-2000 00:00:00
+                            if os.path.isfile(file):
+                                fstat = os.stat(file)
+                                fsize = fstat.st_size
+                                if fsize > 0:
+                                    fexists = True
+                                    mtime = int(fstat.st_mtime)
+
+                            # Get current time and calculate age
+                            currenttime = int(datetime.datetime.now().strftime("%s"))
+                            age = int(currenttime - mtime)
+
+                            if not fexists or age > filettl:
+                                log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '\"')
+                                r = requests.get(url, headers=headers, allow_redirects=True)
+                                if r.status_code == 200:
+                                    try:
+                                        with open(file + '.download', 'w') as f:
+                                            f.write(r.text.encode('ascii', 'ignore'))
+
+                                        try:
+                                            with open(file + '.download', 'r') as f:
+                                                try:
+                                                    with open(file, 'w') as g:
+                                                        for line in f:
+                                                            matchentry = regex.match(fregex, line)
+                                                            if matchentry:
+                                                                g.write(matchentry.group('entry'))
+                                                                g.write('\n')
+
+                                                except IOError:
+                                                    log_err(tag + 'Unable to write to file \"' + file + '\"')
+
+                                        except IOError:
+                                            log_err(tag + 'Unable to open file \"' + file + '.download\"')
+
+                                    except IOError:
+                                        log_err(tag + 'Unable to write to file \"' + file + '.download\"')
+
+                                else:
+                                    log_err(tag + 'Unable to download from \"' + url + '\"')
+
+                            else:
+                                log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
+
+                        if bw == 'black':
+                            read_list(id, file, rblacklist, cblacklist, blacklist)
+                        else:
+                            if not disablewhitelist:
+                                read_list(id, file, rwhitelist, cwhitelist, whitelist)
                     else:
-                        if not disablewhitelist:
-                            read_list(id, file, rwhitelist, cwhitelist, whitelist)
+                        log_err(tag + 'Not enough arguments: \"' + entry + '\"')
 
     except IOError:
         log_err(tag + 'Unable to open file ' + lists)
@@ -483,9 +612,15 @@ def init(id, cfg):
     # Redirect entry, we don't want to expose it
     blacklist[intercept_host.strip('.')] = True
 
-    optimize_domlist(blacklist,'BlackDoms')
+    # Optimize/Aggregate domain lists (remove sub-domains is parent exists)
+    optimize_domlist(whitelist, 'white', 'WhiteDoms')
+    optimize_domlist(blacklist, 'black', 'BlackDoms')
 
-    optimize_domlist(whitelist,'WhiteDoms')
+    # Clean-up after ourselfs
+    gc.collect()
+
+    # Cleanup lists
+    uncomplicate_list(whitelist, blacklist)
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -495,6 +630,7 @@ def init(id, cfg):
     if blockv6:
         if (debug >= 1): log_info(tag + 'Blocking IPv6-Based queries')
 
+    log_info(tag + 'READY FOR SERVICE')
     return True
 
 
