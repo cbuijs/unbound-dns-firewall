@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.2-20180115 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.21-20180115 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -473,6 +473,7 @@ def optimize_domlist(name, bw, listname):
     return False
 
 # Uncomplicate lists, removed whitelisted blacklist entries
+# !!! NEEDS WORK, TOO SLOW !!!
 def uncomplicate_list(wlist, blist):
     log_info(tag + 'Uncomplicating black/whitelists')
 
@@ -489,9 +490,16 @@ def uncomplicate_list(wlist, blist):
                 if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse(found) + '\" due to whitelisted parent \"' + reverse(domain) + '\"')
                 listb.remove(found)
                 
-    # !!! TODO: Do same here as in unreg_list but use whitelist-regex as input to process listb !!!
-
     listb = sorted(map(reverse, listb))
+
+    # !!! TODO: Do same here as in unreg_list but use whitelist-regex as input to process listb !!!
+    for i in range(0,len(rwhitelist)/3):
+        checkregex = rwhitelist[i,1]
+        if (debug >= 2): log_info(tag + 'Checking against white-regex \"' + rwhitelist[i,2] + '\"')
+	for found in filter(checkregex.search, listb):
+            listb.remove(found)
+            if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
+
 
     # New/Work dictionary
     new = dict()
@@ -705,12 +713,15 @@ def init(id, cfg):
     optimize_domlist(whitelist, 'white', 'WhiteDoms')
     optimize_domlist(blacklist, 'black', 'BlackDoms')
 
-    # Cleanup/Uncomplicate domain lists
-    #uncomplicate_list(whitelist, blacklist)
+    # Remove entries that already matches agains regexes
     unreg_list(whitelist, rwhitelist, 'WhiteDoms')
     unreg_list(blacklist, rblacklist, 'BlackDoms')
 
-    write_out('/etc/unbound/whitelist.save','/etc/unbound/blacklist.save')
+    # Remove whitelisted entries from blaclist
+    #uncomplicate_list(whitelist, blacklist)
+
+    # Save processed list for distribution
+    #write_out('/etc/unbound/whitelist.save','/etc/unbound/blacklist.save')
 
     # Clean-up after ourselfs
     gc.collect()
