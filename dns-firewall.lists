@@ -16,8 +16,8 @@ Krogza-Hacked	black	https://raw.githubusercontent.com/mitchellkrogza/The-Big-Lis
 NoCoin	black	https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt	/etc/unbound/nocoin.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
 Notracking-Domains	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/domains.txt	/etc/unbound/notracking-domains.list	86400	^address=/(?P<entry>[^/]+)
 Notracking-Hosts	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt	/etc/unbound/notracking-hosts.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
-Regex-Black	black	/etc/unbound/regex-whitelist
-Regex-White	black	/etc/unbound/regex-blacklist
+Regex-White	white	/etc/unbound/regex-whitelist
+Regex-Black	black	/etc/unbound/regex-blacklist
 SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc/unbound/spamhaus-top10-botnet.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
 SpamHaus-Top10-TLD	black	https://www.spamhaus.org/statistics/tlds/	/etc/unbound/spamhaus-top10-tld.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
 Steven-Black	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts	/etc/unbound/stevenblack.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
