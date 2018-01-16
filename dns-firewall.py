@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.3-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.31-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -111,6 +111,7 @@ cachesize = 2500
 cachettl = 1800
 blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
+cachefile = '/etc/unbound/cache.file'
 
 # Save
 savelists = True
@@ -663,8 +664,8 @@ def init(id, cfg):
                                 fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
                                 if len(element) > 5:
                                     r = element[5]
-                                    if fregex.find('(?P<entry>') == -1:
-                                        log_err(tag + 'Regex \"' + fregex + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
+                                    if r.find('(?P<entry>') == -1:
+                                        log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
                                     else:
                                         fregex = r
     
@@ -768,7 +769,7 @@ def deinit(id):
     if savelists:
         log_info(tag + 'Saveing cache')
         try:
-            with open('/etc/unbound/cache.file', 'w') as f:
+            with open(cachefile, 'w') as f:
     	        for line in sorted(blackcache.keys()):
                     f.write('BLACK:' + line)
                     f.write('\n')
@@ -777,7 +778,7 @@ def deinit(id):
                     f.write('\n')
 
         except IOError:
-            log_err(tag + 'Unable to open file /etc/unbound/cache.file')
+            log_err(tag + 'Unable to open file \"' + cachefile + '\"')
 
     log_info(tag + 'DONE!')
     return True
