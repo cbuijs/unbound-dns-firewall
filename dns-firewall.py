@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.26-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.3-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -123,7 +123,7 @@ disablewhitelist = False
 # Check answers/responses as well
 checkresponse = True
 
-# Automatic generated reverse entries for IP-Addresses that are blocke
+# Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
 
 # Block IPv6 queries/responses
@@ -424,7 +424,7 @@ def generate_response(qstate, rname, rtype, rrtype):
     return False
 
 
-# Simple string reverser, reverse string and add tic-tac-toe-grid (#) to start, and reverse it
+# Simple string reverser, reverse string and add tic-tac-toe-grid (#) to start, and reverse/undo when already so
 def reverse_hash(s):
     if s.find('#') == -1:
         s = '#' + s[::-1]
@@ -473,35 +473,43 @@ def optimize_domlist(name, bw, listname):
 
     return False
 
+
 # Uncomplicate lists, removed whitelisted blacklist entries
 # !!! NEEDS WORK, TOO SLOW !!!
+# !!! Also not really necesarry as already taken care of by logic in the procedures !!!
+# !!! Just memory saver and potential speed up as lists are smaller !!!
 def uncomplicate_list(wlist, blist):
     log_info(tag + 'Uncomplicating black/whitelists')
 
-    listw = sorted(map(reverse_hash, wlist.keys()))
-    listb = sorted(map(reverse_hash, blist.keys()))
+    listw = set(map(reverse_hash, wlist.keys()))
+    listb = set(map(reverse_hash, blist.keys()))
 
+    # Remove all 1-to-1/same whitelisted entries from blacklist
+    # !!! We need logging on this !!!
+    listb = listb.difference(listw)
+
+    # Create checklist for speed
+    checklistb = ''.join(listb)
+
+    # loop through whitelist entries and find parented entries in blacklist to remove
     for domain in listw:
-        if domain in listb:
-            if (debug >= 3): log_info(tag + 'Removed witelisted blacklist-entry \"' + reverse_hash(domain) + '\"')
-            listb.remove(domain)
-        else:
-            parent = domain + '.'
-            for found in filter(lambda x: parent in x, listb):
+        child = domain + '.'
+        if child in checklistb:
+            for found in filter(lambda x: x.startswith(child), listb):
                 if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse_hash(found) + '\" due to whitelisted parent \"' + reverse_hash(domain) + '\"')
                 listb.remove(found)
+
+            checklistb = ''.join(listb)
                 
     listb = sorted(map(reverse_hash, listb))
 
-    # !!! TODO: Do same here as in unreg_list but use whitelist-regex as input to process listb !!!
-    # !!! Add logging !!!
+    # Remove blacklisted entries when matched against whitelist regex
     for i in range(0,len(rwhitelist)/3):
         checkregex = rwhitelist[i,1]
         if (debug >= 2): log_info(tag + 'Checking against white-regex \"' + rwhitelist[i,2] + '\"')
         for found in filter(checkregex.search, listb):
             listb.remove(found)
             if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
-
 
     # New/Work dictionary
     new = dict()
@@ -722,7 +730,7 @@ def init(id, cfg):
 
     if readblack or readwhite:
         # Remove whitelisted entries from blaclist
-        #uncomplicate_list(whitelist, blacklist)
+        uncomplicate_list(whitelist, blacklist)
 
         # Save processed list for distribution
         write_out(whitesave, blacksave)
@@ -754,10 +762,30 @@ def client_ip(qstate):
 
 
 def deinit(id):
+    tag = 'DNS-FIREWALL DE-INIT: '
+    log_info(tag + 'Shutting down')
+
+    if savelists:
+        log_info(tag + 'Saveing cache')
+        try:
+            with open('/etc/unbound/cache.file', 'w') as f:
+    	        for line in sorted(blackcache.keys()):
+                    f.write('BLACK:' + line)
+                    f.write('\n')
+                for line in sorted(whitecache.keys()):
+                    f.write('WHITE:' + line)
+                    f.write('\n')
+
+        except IOError:
+            log_err(tag + 'Unable to open file /etc/unbound/cache.file')
+
+    log_info(tag + 'DONE!')
     return True
 
 
 def inform_super(id, qstate, superqstate, qdata):
+    tag = 'DNS-FIREWALL INFORM-SUPER: '
+    log_info(tag + 'HI!')
     return True
 
 
