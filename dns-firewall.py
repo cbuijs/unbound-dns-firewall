@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.25-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.26-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -556,7 +556,7 @@ def write_out(whitefile, blackfile):
                 f.write('\n')
 
             f.write('### WHITELIST CIDRs ###\n')
-            for a in sorted(cwhitelist.keys()):
+            for a in cwhitelist.keys():
                 f.write(a)
                 f.write('\n')
 
@@ -578,7 +578,7 @@ def write_out(whitefile, blackfile):
                 f.write('\n')
 
             f.write('### BLACKLIST CIDRs ###\n')
-            for a in sorted(cblacklist.keys()):
+            for a in cblacklist.keys():
                 f.write(a)
                 f.write('\n')
 
