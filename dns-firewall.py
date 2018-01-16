@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.23-20180115 Copyright (C) 2017 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.25-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -57,11 +57,12 @@ TODO:
 =========================================================================================
 '''
 
-# Standard/Included modules
-import os, os.path, sys, commands, datetime, gc
-
-# make sure modules can be found
+# Make sure modules can be found
+import sys
 sys.path.append("/usr/local/lib/python2.7/dist-packages/")
+
+# Standard/Included modules
+import os, os.path, commands, datetime, gc
 
 # Enable Garbage collection
 gc.enable()
@@ -69,11 +70,11 @@ gc.enable()
 # Use requests module for downloading lists
 import requests
 
-# Use module regex
+# Use module regex instead of re, much faster less bugs
 import regex
 
-# Use module pysubnettree
-import SubnetTree
+# Use module pytricia to find ip's in CIDR's fast
+import pytricia
 
 # Use expiringdictionary for cache
 from expiringdict import ExpiringDict
@@ -100,8 +101,8 @@ lists = '/etc/unbound/dns-firewall.lists'
 # Lists
 blacklist = dict() # Domains blacklist
 whitelist = dict() # Domains whitelist
-cblacklist = SubnetTree.SubnetTree() # IP blacklist
-cwhitelist = SubnetTree.SubnetTree() # IP whitelist
+cblacklist = pytricia.PyTricia(128) # IP blacklist
+cwhitelist = pytricia.PyTricia(128) # IP whitelist
 rblacklist = dict() # Regex blacklist (maybe replace with set()?)
 rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 
@@ -110,6 +111,11 @@ cachesize = 2500
 cachettl = 1800
 blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
+
+# Save
+savelists = True
+blacksave = '/etc/unbound/blacklist.save'
+whitesave = '/etc/unbound/whitelist.save'
 
 # Forcing blacklist, use with caution
 disablewhitelist = False
@@ -141,7 +147,7 @@ isregex = regex.compile('^/.*/$')
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
-exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/8$', regex.I) # Bug in pysubnettree '::/8' matching IPv4 as well
+exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 
 #########################################################################################
 
@@ -317,15 +323,11 @@ def read_list(id, name, regexlist, iplist, domainlist):
                             elif (ipregex.match(entry)):
                                 # It is an IP
                                 if checkresponse:
-                                    if blockv6:
-                                        if entry.find(':') > 0:
-                                            entry = False
-                                    else:
-                                        if entry.find('/') == -1: # Check if Single IP or CIDR already
-                                            if entry.find(':') == -1:
-                                                entry = entry + '/32' # Single IPv4 Address
-                                            else:
-                                                entry = entry + '/128' # Single IPv6 Address
+                                    if entry.find('/') == -1: # Check if Single IP or CIDR already
+                                        if entry.find(':') == -1:
+                                            entry = entry + '/32' # Single IPv4 Address
+                                        else:
+                                            entry = entry + '/128' # Single IPv6 Address
 
                                     if entry:
                                         iplist[entry.lower()] = '\"' + entry.lower() + '\" (' + str(id) + ')'
@@ -437,13 +439,12 @@ def optimize_domlist(name, bw, listname):
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
 
     # Get all keys (=domains) into a sorted/uniqued list
-    #list = sorted(set(map(reverse_hash, name.keys()))) # uniq/set not needed due to dict
-    list = sorted(map(reverse_hash, name.keys()))
+    domlist = sorted(map(reverse_hash, name.keys()))
 
     # Remove all subdomains
     parent = None
     undupped = set()
-    for domain in list:
+    for domain in domlist:
         if not parent or not domain.startswith(parent):
             undupped.add(domain)
             parent = domain + '.'
@@ -528,16 +529,19 @@ def unreg_list(dlist, rlist, listname):
         if (debug >= 2): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
 	for found in filter(checkregex.search, dlist):
             count += 1
-            list = dlist.pop(found, None)
-            if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + list + '\", already matched by regex \"' + rlist[i,2] + '\"')
+            name = dlist.pop(found, None)
+            if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + name + '\", already matched by regex \"' + rlist[i,2] + '\"')
 
     if (debug >= 2): log_info(tag + 'Removed ' + str(count) + ' entries from \"' + listname + '\"')
     return True
 
 
 # Save lists
-# !!!! NEEDS WORK AND SIMPLIFIED, NO IPV6 SAVED !!!!
+# !!!! NEEDS WORK AND SIMPLIFIED !!!!
 def write_out(whitefile, blackfile):
+    if not savelists:
+        return False
+
     log_info(tag + 'Saving processed lists to \"' + whitefile + '\" and \"' + blackfile + '\"')
     try:
         with open(whitefile, 'w') as f:
@@ -551,17 +555,9 @@ def write_out(whitefile, blackfile):
                 f.write(line)
                 f.write('\n')
 
-            # !!! ONLY IPv4 using a hack with prefixes, NEEDS WORK !!!
             f.write('### WHITELIST CIDRs ###\n')
-            for a in sorted(cwhitelist.prefixes()):
-                if a.find('::ffff:') == 0:
-                    prefix = a.split(':')[3]
-                    address = prefix.split('/')[0]
-                    bits = str(int(prefix.split('/')[1]) - 96)
-                    f.write(address + '/' + bits)
-                else:
-                    f.write(a)
-
+            for a in sorted(cwhitelist.keys()):
+                f.write(a)
                 f.write('\n')
 
             f.write('### WHITELIST EOF ###\n')
@@ -581,17 +577,9 @@ def write_out(whitefile, blackfile):
                 f.write(line)
                 f.write('\n')
 
-            # !!! ONLY IPv4 using a hack with prefixes, NEEDS WORK !!!
             f.write('### BLACKLIST CIDRs ###\n')
-            for a in sorted(cblacklist.prefixes()):
-                if a.find('::ffff:') == 0:
-                    prefix = a.split(':')[3]
-                    address = prefix.split('/')[0]
-                    bits = str(int(prefix.split('/')[1]) - 96)
-                    f.write(address + '/' + bits)
-                else:
-                    f.write(a)
-
+            for a in sorted(cblacklist.keys()):
+                f.write(a)
                 f.write('\n')
 
             f.write('### BLACKLIST EOF ###\n')
@@ -601,18 +589,45 @@ def write_out(whitefile, blackfile):
 
     return True
 
+# Check if file exists and return age if so
+def file_exist(file):
+    if os.path.isfile(file):
+        fstat = os.stat(file)
+        fsize = fstat.st_size
+        if fsize > 0:
+            fexists = True
+            mtime = int(fstat.st_mtime)
+            currenttime = int(datetime.datetime.now().strftime("%s"))
+            age = int(currenttime - mtime)
+            return age
+
+    return False
+
 
 # Initialization
 def init(id, cfg):
     log_info(tag + 'Initializing')
 
+    # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
         }
 
     # Read Lists
+    readblack = True
+    readwhite = True
+    if savelists:
+        age = file_exist(whitesave)
+        if age and age < maxlistage and not disablewhitelist:
+            log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
+            read_list('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist)
+            readwhite = False
 
-    # !!! TODO Here, check if save-files exists, not expired, load them in as-is when valid. Much quicker and skip processing.
+        age = file_exist(blacksave)
+        if age and age < maxlistage:
+            log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
+            read_list('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist)
+            readblack = False
 
     try:
         with open(lists, 'r') as f:
@@ -623,78 +638,71 @@ def init(id, cfg):
                     if len(element) > 2:
                         id = element[0]
                         bw = element[1]
-                        file = element[2]
-                        if (file.find('http://') == 0) or (file.find('https://') == 0):
-                            url = file
-                            if len(element) > 3:
-                                file = element[3]
-                            else:
-                                file = '/etc/unbound/' + id.strip('.').lower() + ".list"
-
-                            if len(element) > 4:
-                                filettl = int(element[4])
-                            else:
-                                filettl = maxlistage
-
-                            fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
-                            if len(element) > 5:
-                                r = element[5]
-                                if fregex.find('(?P<entry>') == -1:
-                                    log_err(tag + 'Regex \"' + fregex + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
+                        if (bw == 'black' and readblack) or (bw == 'white' and readwhite):
+                            file = element[2]
+                            if (file.find('http://') == 0) or (file.find('https://') == 0):
+                                url = file
+                                if len(element) > 3:
+                                    file = element[3]
                                 else:
-                                    fregex = r
-
-                            fexists = False
-                            mtime = 946702800 # 1-Jan-2000 00:00:00
-                            if os.path.isfile(file):
-                                fstat = os.stat(file)
-                                fsize = fstat.st_size
-                                if fsize > 0:
-                                    fexists = True
-                                    mtime = int(fstat.st_mtime)
-
-                            # Get current time and calculate age
-                            currenttime = int(datetime.datetime.now().strftime("%s"))
-                            age = int(currenttime - mtime)
-
-                            if not fexists or age > filettl:
-                                log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '\"')
-                                r = requests.get(url, headers=headers, allow_redirects=True)
-                                if r.status_code == 200:
-                                    try:
-                                        with open(file + '.download', 'w') as f:
-                                            f.write(r.text.encode('ascii', 'ignore'))
-
+                                    file = '/etc/unbound/' + id.strip('.').lower() + ".list"
+    
+                                if len(element) > 4:
+                                    filettl = int(element[4])
+                                else:
+                                    filettl = maxlistage
+    
+                                fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
+                                if len(element) > 5:
+                                    r = element[5]
+                                    if fregex.find('(?P<entry>') == -1:
+                                        log_err(tag + 'Regex \"' + fregex + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
+                                    else:
+                                        fregex = r
+    
+                                fexists = False
+    
+                                age = file_exist(file)
+                                if not age or age > filettl:
+                                    log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '\"')
+                                    r = requests.get(url, headers=headers, allow_redirects=True)
+                                    if r.status_code == 200:
                                         try:
-                                            with open(file + '.download', 'r') as f:
-                                                try:
-                                                    with open(file, 'w') as g:
-                                                        for line in f:
-                                                            matchentry = regex.match(fregex, line)
-                                                            if matchentry:
-                                                                g.write(matchentry.group('entry'))
-                                                                g.write('\n')
+                                            with open(file + '.download', 'w') as f:
+                                                f.write(r.text.encode('ascii', 'ignore'))
 
-                                                except IOError:
-                                                    log_err(tag + 'Unable to write to file \"' + file + '\"')
+                                            try:
+                                                with open(file + '.download', 'r') as f:
+                                                    try:
+                                                        with open(file, 'w') as g:
+                                                            for line in f:
+                                                                matchentry = regex.match(fregex, line)
+                                                                if matchentry:
+                                                                    g.write(matchentry.group('entry'))
+                                                                    g.write('\n')
+
+                                                    except IOError:
+                                                        log_err(tag + 'Unable to write to file \"' + file + '\"')
+
+                                            except IOError:
+                                                log_err(tag + 'Unable to open file \"' + file + '.download\"')
 
                                         except IOError:
-                                            log_err(tag + 'Unable to open file \"' + file + '.download\"')
+                                            log_err(tag + 'Unable to write to file \"' + file + '.download\"')
 
-                                    except IOError:
-                                        log_err(tag + 'Unable to write to file \"' + file + '.download\"')
+                                    else:
+                                        log_err(tag + 'Unable to download from \"' + url + '\"')
 
                                 else:
-                                    log_err(tag + 'Unable to download from \"' + url + '\"')
+                                    log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
 
+                            if bw == 'black':
+                                read_list(id, file, rblacklist, cblacklist, blacklist)
                             else:
-                                log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
-
-                        if bw == 'black':
-                            read_list(id, file, rblacklist, cblacklist, blacklist)
+                                if not disablewhitelist:
+                                    read_list(id, file, rwhitelist, cwhitelist, whitelist)
                         else:
-                            if not disablewhitelist:
-                                read_list(id, file, rwhitelist, cwhitelist, whitelist)
+                            log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
                     else:
                         log_err(tag + 'Not enough arguments: \"' + entry + '\"')
 
@@ -704,28 +712,20 @@ def init(id, cfg):
     # Redirect entry, we don't want to expose it
     blacklist[intercept_host.strip('.')] = True
 
-    #regexcount = str(len(whitelist)/3-1)
-    #ipcount = str(len(cwhitelist))
-    #domaincount = str(len(whitelist))
-    #if (debug >= 1): log_info(tag + 'Total Whitelist entries fetched: ' + regexcount + ' REGEXES, ' + ipcount + ' CIDRS and ' + domaincount + ' DOMAINS')
-    #regexcount = str(len(blacklist)/3-1)
-    #ipcount = str(len(cblacklist))
-    #domaincount = str(len(blacklist))
-    #if (debug >= 1): log_info(tag + 'Total Blacklist entries fetched: ' + regexcount + ' REGEXES, ' + ipcount + ' CIDRS and ' + domaincount + ' DOMAINS')
+    # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
+    if readblack:
+        optimize_domlist(whitelist, 'white', 'WhiteDoms')
+        unreg_list(whitelist, rwhitelist, 'WhiteDoms')
+    if readwhite:
+        optimize_domlist(blacklist, 'black', 'BlackDoms')
+        unreg_list(blacklist, rblacklist, 'BlackDoms')
 
-    # Optimize/Aggregate domain lists (remove sub-domains is parent exists)
-    optimize_domlist(whitelist, 'white', 'WhiteDoms')
-    optimize_domlist(blacklist, 'black', 'BlackDoms')
+    if readblack or readwhite:
+        # Remove whitelisted entries from blaclist
+        #uncomplicate_list(whitelist, blacklist)
 
-    # Remove entries that already matches agains regexes
-    unreg_list(whitelist, rwhitelist, 'WhiteDoms')
-    unreg_list(blacklist, rblacklist, 'BlackDoms')
-
-    # Remove whitelisted entries from blaclist
-    #uncomplicate_list(whitelist, blacklist)
-
-    # Save processed list for distribution
-    #write_out('/etc/unbound/whitelist.save','/etc/unbound/blacklist.save')
+        # Save processed list for distribution
+        write_out(whitesave, blacksave)
 
     # Clean-up after ourselfs
     gc.collect()
