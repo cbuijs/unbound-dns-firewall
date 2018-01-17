@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.57-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.58-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -63,6 +63,7 @@ sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 
 # Standard/Included modules
 import os, os.path, commands, datetime, gc
+from thread import start_new_thread
 
 # Enable Garbage collection
 gc.enable()
@@ -134,6 +135,8 @@ command_in_progress = False
 # dig @127.0.0.1 <number>.debug.commandtld - Set debug level to <Number>
 # dig @127.0.0.1 save.cache.commandtld - Save cache to cachefile
 # dig @127.0.0.1 reload.commandtld - Reload saved lists
+# dig @127.0.0.1 update.commandtld - Update/Reload lists
+# dig @127.0.0.1 force.update.commandtld - Force Update/Reload lists
 # dig @127.0.0.1 force.reload.commandtld - Force fetching/processing of lists and reload
 # dig @127.0.0.1 pause.commandtld - Pause filtering (everything passthru)
 # dig @127.0.0.1 resume.commandtld - Resume filtering
@@ -365,7 +368,7 @@ def clear_cache():
 
 
 # Load lists
-def load_lists(force):
+def load_lists(force, savelists):
     tag = 'DNS-FIREWALL LISTS: '
 
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
@@ -497,6 +500,8 @@ def load_lists(force):
 
 # Read file/list
 def read_list(id, name, regexlist, iplist, domainlist):
+    TAG = 'DNS-FIREWALL LISTS: '
+
     if (len(name) > 0):
         try:
             with open(name, 'r') as f:
@@ -636,6 +641,8 @@ def reverse_hash(s):
 
 # Domain aggregator, removes subdomains if parent exists
 def optimize_domlist(name, bw, listname):
+    tag = 'DNS-FIREWALL LISTS: '
+
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
 
     # Get all keys (=domains) into a sorted/uniqued list
@@ -679,6 +686,8 @@ def optimize_domlist(name, bw, listname):
 # !!! Also not really necesarry as already taken care of by logic in the procedures !!!
 # !!! Just memory saver and potential speed up as lists are smaller !!!
 def uncomplicate_list(wlist, blist):
+    tag = 'DNS-FIREWALL LISTS: '
+
     log_info(tag + 'Uncomplicating black/whitelists')
 
     listw = set(map(reverse_hash, wlist.keys()))
@@ -729,6 +738,8 @@ def uncomplicate_list(wlist, blist):
 
 # Remove entries from domains already matchin regex
 def unreg_list(dlist, rlist, listname):
+    tag = 'DNS-FIREWALL LISTS: '
+
     log_info(tag + 'Unregging \"' + listname + '\"')
 
     count = 0
@@ -747,6 +758,8 @@ def unreg_list(dlist, rlist, listname):
 # Save lists
 # !!!! NEEDS WORK AND SIMPLIFIED !!!!
 def write_out(whitefile, blackfile):
+    tag = 'DNS-FIREWALL LISTS: '
+
     if not savelists:
         return False
 
@@ -814,10 +827,12 @@ def file_exist(file):
 
 # Initialization
 def init(id, cfg):
+    tag = 'DNS-FIREWALL INIT: '
+
     log_info(tag + 'Initializing')
 
     # Read Lists
-    load_lists(False)
+    load_lists(False, savelists)
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -845,11 +860,11 @@ def client_ip(qstate):
 
 # Commands to execute based on commandtld query
 def execute_command(qstate):
+    tag = 'DNS-FIREWALL COMMAND: '
+
     global filtering
     global command_in_progress
     global debug
-
-    tag = 'DNS-FIREWALL COMMAND: '
 
     if command_in_progress:
         log_info(tag + 'ALREADY PROCESSING COMMAND')
@@ -863,11 +878,19 @@ def execute_command(qstate):
         if qname == 'reload':
             rc = True
             log_info(tag + 'Reloading lists')
-            load_lists(False)
+            load_lists(False, savelists)
         elif qname == 'force.reload':
             rc = True
             log_info(tag + 'FORCE Reloading lists')
-            load_lists(True)
+            load_lists(True, savelists)
+        elif qname == 'update':
+            rc = True
+            log_info(tag + 'Updating lists')
+            load_lists(False, False)
+        elif qname == 'force.update':
+            rc = True
+            log_info(tag + 'Updating lists')
+            load_lists(True, False)
         elif qname == 'pause':
             rc = True
             if filtering:
@@ -965,7 +988,9 @@ def inform_super(id, qstate, superqstate, qdata):
 
 # Main beef
 def operate(id, event, qstate, qdata):
-    global tag
+    tag = 'DNS-FIREWALL INIT: '
+
+    #global tag
     global tagcount
 
     tagcount += 1
@@ -984,7 +1009,9 @@ def operate(id, event, qstate, qdata):
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
         if qname:
-            if cip == '127.0.0.1' and (qname.endswith(commandtld)) and execute_command(qstate):
+            if cip == '127.0.0.1' and (qname.endswith(commandtld)):
+                start_new_thread(execute_command, (qstate,))
+
                 qstate.return_rcode = RCODE_NXDOMAIN
                 qstate.ext_state[id] = MODULE_FINISHED
                 return True
