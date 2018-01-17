@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.31-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.5-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -121,6 +121,12 @@ whitesave = '/etc/unbound/whitelist.save'
 # Forcing blacklist, use with caution
 disablewhitelist = False
 
+# Filtering on/off
+filtering = True
+
+# Keep state/lock on commands
+command_in_progress = False
+
 # Check answers/responses as well
 checkresponse = True
 
@@ -154,6 +160,10 @@ exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]
 
 # Check against lists
 def in_list(name, bw, type, rrtype='ALL'):
+    if not filtering:
+        if (debug >= 2): log_info(tag + 'Filtering disabled, passthru \"' + name + '\" (RR:' + rrtype + ')')
+        return False
+
     if (bw == 'white') and disablewhitelist:
         return False
 
@@ -294,6 +304,168 @@ def rev_ip(ip):
         return arpa
     else:
         return False
+
+
+# Clear lists
+def clear_lists():
+    tag = 'DNS-FIREWALL LISTS: '
+
+    log_info(tag + 'Clearing Lists')
+    rwhitelist.clear()
+    whitelist.clear()
+    for i in cwhitelist.keys():
+        cwhitelist.delete(i)
+
+    rblacklist.clear()
+    blacklist.clear()
+    for i in cblacklist.keys():
+        cblacklist.delete(i)
+
+    clear_cache()
+
+    return True
+
+
+# Clear cache
+def clear_cache():
+    tag = 'DNS-FIREWALL CACHE: '
+
+    log_info(tag + 'Clearing Cache')
+    blackcache.clear()
+    whitecache.clear()
+
+    return True
+
+
+# Load lists
+def load_lists(force):
+    tag = 'DNS-FIREWALL LISTS: '
+
+    # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
+        }
+
+    clear_lists()
+
+    # Read Lists
+    readblack = True
+    readwhite = True
+    if savelists and not force:
+        age = file_exist(whitesave)
+        if age and age < maxlistage and not disablewhitelist:
+            log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
+            read_list('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist)
+            readwhite = False
+
+        age = file_exist(blacksave)
+        if age and age < maxlistage:
+            log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
+            read_list('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist)
+            readblack = False
+
+    try:
+        with open(lists, 'r') as f:
+            for line in f:
+                entry = line.strip()
+                if not (entry.startswith("#")) and not (len(entry) == 0):
+                    element = entry.split('\t')
+                    if len(element) > 2:
+                        id = element[0]
+                        bw = element[1]
+                        if (bw == 'black' and readblack) or (bw == 'white' and readwhite):
+                            file = element[2]
+                            if (file.find('http://') == 0) or (file.find('https://') == 0):
+                                url = file
+                                if len(element) > 3:
+                                    file = element[3]
+                                else:
+                                    file = '/etc/unbound/' + id.strip('.').lower() + ".list"
+    
+                                if len(element) > 4:
+                                    filettl = int(element[4])
+                                else:
+                                    filettl = maxlistage
+    
+                                fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
+                                if len(element) > 5:
+                                    r = element[5]
+                                    if r.find('(?P<entry>') == -1:
+                                        log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
+                                    else:
+                                        fregex = r
+    
+                                fexists = False
+    
+                                age = file_exist(file)
+                                if not age or age > filettl or force:
+                                    log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '\"')
+                                    r = requests.get(url, headers=headers, allow_redirects=True)
+                                    if r.status_code == 200:
+                                        try:
+                                            with open(file + '.download', 'w') as f:
+                                                f.write(r.text.encode('ascii', 'ignore'))
+
+                                            try:
+                                                with open(file + '.download', 'r') as f:
+                                                    try:
+                                                        with open(file, 'w') as g:
+                                                            for line in f:
+                                                                matchentry = regex.match(fregex, line)
+                                                                if matchentry:
+                                                                    g.write(matchentry.group('entry'))
+                                                                    g.write('\n')
+
+                                                    except IOError:
+                                                        log_err(tag + 'Unable to write to file \"' + file + '\"')
+
+                                            except IOError:
+                                                log_err(tag + 'Unable to open file \"' + file + '.download\"')
+
+                                        except IOError:
+                                            log_err(tag + 'Unable to write to file \"' + file + '.download\"')
+
+                                    else:
+                                        log_err(tag + 'Unable to download from \"' + url + '\"')
+
+                                else:
+                                    log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
+
+                            if bw == 'black':
+                                read_list(id, file, rblacklist, cblacklist, blacklist)
+                            else:
+                                if not disablewhitelist:
+                                    read_list(id, file, rwhitelist, cwhitelist, whitelist)
+                        else:
+                            log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
+                    else:
+                        log_err(tag + 'Not enough arguments: \"' + entry + '\"')
+
+    except IOError:
+        log_err(tag + 'Unable to open file ' + lists)
+
+    # Redirect entry, we don't want to expose it
+    blacklist[intercept_host.strip('.')] = True
+
+    # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
+    if readblack:
+        optimize_domlist(whitelist, 'white', 'WhiteDoms')
+        unreg_list(whitelist, rwhitelist, 'WhiteDoms')
+    if readwhite:
+        optimize_domlist(blacklist, 'black', 'BlackDoms')
+        unreg_list(blacklist, rblacklist, 'BlackDoms')
+
+    if readblack or readwhite:
+        # Remove whitelisted entries from blaclist
+        uncomplicate_list(whitelist, blacklist)
+
+        # Save processed list for distribution
+        write_out(whitesave, blacksave)
+
+    # Clean-up after ourselfs
+    gc.collect()
+
+    return True
 
 
 # Read file/list
@@ -617,127 +789,8 @@ def file_exist(file):
 def init(id, cfg):
     log_info(tag + 'Initializing')
 
-    # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
-        }
-
     # Read Lists
-    readblack = True
-    readwhite = True
-    if savelists:
-        age = file_exist(whitesave)
-        if age and age < maxlistage and not disablewhitelist:
-            log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_list('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist)
-            readwhite = False
-
-        age = file_exist(blacksave)
-        if age and age < maxlistage:
-            log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_list('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist)
-            readblack = False
-
-    try:
-        with open(lists, 'r') as f:
-            for line in f:
-                entry = line.strip()
-                if not (entry.startswith("#")) and not (len(entry) == 0):
-                    element = entry.split('\t')
-                    if len(element) > 2:
-                        id = element[0]
-                        bw = element[1]
-                        if (bw == 'black' and readblack) or (bw == 'white' and readwhite):
-                            file = element[2]
-                            if (file.find('http://') == 0) or (file.find('https://') == 0):
-                                url = file
-                                if len(element) > 3:
-                                    file = element[3]
-                                else:
-                                    file = '/etc/unbound/' + id.strip('.').lower() + ".list"
-    
-                                if len(element) > 4:
-                                    filettl = int(element[4])
-                                else:
-                                    filettl = maxlistage
-    
-                                fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
-                                if len(element) > 5:
-                                    r = element[5]
-                                    if r.find('(?P<entry>') == -1:
-                                        log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
-                                    else:
-                                        fregex = r
-    
-                                fexists = False
-    
-                                age = file_exist(file)
-                                if not age or age > filettl:
-                                    log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '\"')
-                                    r = requests.get(url, headers=headers, allow_redirects=True)
-                                    if r.status_code == 200:
-                                        try:
-                                            with open(file + '.download', 'w') as f:
-                                                f.write(r.text.encode('ascii', 'ignore'))
-
-                                            try:
-                                                with open(file + '.download', 'r') as f:
-                                                    try:
-                                                        with open(file, 'w') as g:
-                                                            for line in f:
-                                                                matchentry = regex.match(fregex, line)
-                                                                if matchentry:
-                                                                    g.write(matchentry.group('entry'))
-                                                                    g.write('\n')
-
-                                                    except IOError:
-                                                        log_err(tag + 'Unable to write to file \"' + file + '\"')
-
-                                            except IOError:
-                                                log_err(tag + 'Unable to open file \"' + file + '.download\"')
-
-                                        except IOError:
-                                            log_err(tag + 'Unable to write to file \"' + file + '.download\"')
-
-                                    else:
-                                        log_err(tag + 'Unable to download from \"' + url + '\"')
-
-                                else:
-                                    log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
-
-                            if bw == 'black':
-                                read_list(id, file, rblacklist, cblacklist, blacklist)
-                            else:
-                                if not disablewhitelist:
-                                    read_list(id, file, rwhitelist, cwhitelist, whitelist)
-                        else:
-                            log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
-                    else:
-                        log_err(tag + 'Not enough arguments: \"' + entry + '\"')
-
-    except IOError:
-        log_err(tag + 'Unable to open file ' + lists)
-
-    # Redirect entry, we don't want to expose it
-    blacklist[intercept_host.strip('.')] = True
-
-    # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
-    if readblack:
-        optimize_domlist(whitelist, 'white', 'WhiteDoms')
-        unreg_list(whitelist, rwhitelist, 'WhiteDoms')
-    if readwhite:
-        optimize_domlist(blacklist, 'black', 'BlackDoms')
-        unreg_list(blacklist, rblacklist, 'BlackDoms')
-
-    if readblack or readwhite:
-        # Remove whitelisted entries from blaclist
-        uncomplicate_list(whitelist, blacklist)
-
-        # Save processed list for distribution
-        write_out(whitesave, blacksave)
-
-    # Clean-up after ourselfs
-    gc.collect()
+    load_lists(False)
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -762,23 +815,109 @@ def client_ip(qstate):
     return "0.0.0.0"
 
 
+def execute_command(qstate):
+    global filtering
+    global command_in_progress
+
+    tag = 'DNS-FIREWALL COMMAND: '
+
+    if command_in_progress:
+        log_info(tag + 'ALREADY PROCESSING COMMAND')
+        return True
+
+    command_in_progress = True
+
+    qname = qstate.qinfo.qname_str.rstrip('.').lower()
+    rc = False
+    if qname:
+        if qname == 'reload.command':
+            rc = True
+            log_info(tag + 'Reloading lists')
+            load_lists(False)
+        elif qname == 'force.reload.command':
+            rc = True
+            log_info(tag + 'FORCE Reloading lists')
+            load_lists(True)
+        elif qname == 'pause.command':
+            rc = True
+            if filtering:
+                log_info(tag + 'Filtering PAUSED')
+                filtering = False
+            else:
+                log_info(tag + 'Filtering already PAUSED')
+        elif qname == 'resume.command':
+            rc = True
+            if not filtering:
+                log_info(tag + 'Filtering RESUMED')
+                clear_cache()
+                filtering = True
+            else:
+                log_info(tag + 'Filtering already RESUMED or Active')
+        elif qname == 'save.cache.command':
+            rc = True
+            save_cache()
+        elif qname == 'save.list.command':
+            rc = True
+            write_out(whitesave, blacksave)
+        elif (qname.endswith('.add.whitelist.command')):
+            rc = True
+            domain = '.'.join(qname.split('.')[:-3])
+            if not domain in whitelist:
+                log_info(tag + 'Added \"' + domain + '\" to whitelist')
+                whitelist[domain] = 'Whitelisted'
+        elif (qname.endswith('.add.blacklist.command')):
+            rc = True
+            domain = '.'.join(qname.split('.')[:-3])
+            if not domain in blacklist:
+                log_info(tag + 'Added \"' + domain + '\" to blacklist')
+                blacklist[domain] = 'Blacklisted'
+        elif (qname.endswith('.del.whitelist.command')):
+            rc = True
+            domain = '.'.join(qname.split('.')[:-3])
+            if domain in whitelist:
+                log_info(tag + 'Removed \"' + domain + '\" from whitelist')
+                del whitelist[domain]
+                clear_cache()
+        elif (qname.endswith('.del.blacklist.command')):
+            rc = True
+            domain = '.'.join(qname.split('.')[:-3])
+            if domain in blacklist:
+                log_info(tag + 'Removed \"' + domain + '\" from blacklist')
+                del blacklist[domain]
+                clear_cache()
+
+    if rc:
+        log_info(tag + 'DONE')
+
+    command_in_progress = False
+    return rc
+
+
+def save_cache():
+    tag = 'DNS-FIREWALL CACHE: '
+
+    log_info(tag + 'Save-ing cache')
+    try:
+        with open(cachefile, 'w') as f:
+	    for line in sorted(blackcache.keys()):
+                f.write('BLACK:' + line)
+                f.write('\n')
+            for line in sorted(whitecache.keys()):
+                f.write('WHITE:' + line)
+                f.write('\n')
+
+    except IOError:
+        log_err(tag + 'Unable to open file \"' + cachefile + '\"')
+
+    return True
+
+
 def deinit(id):
     tag = 'DNS-FIREWALL DE-INIT: '
     log_info(tag + 'Shutting down')
 
     if savelists:
-        log_info(tag + 'Saveing cache')
-        try:
-            with open(cachefile, 'w') as f:
-    	        for line in sorted(blackcache.keys()):
-                    f.write('BLACK:' + line)
-                    f.write('\n')
-                for line in sorted(whitecache.keys()):
-                    f.write('WHITE:' + line)
-                    f.write('\n')
-
-        except IOError:
-            log_err(tag + 'Unable to open file \"' + cachefile + '\"')
+        save_cache()
 
     log_info(tag + 'DONE!')
     return True
@@ -792,7 +931,6 @@ def inform_super(id, qstate, superqstate, qdata):
 
 # Main beef
 def operate(id, event, qstate, qdata):
-
     global tag
     global tagcount
 
@@ -812,6 +950,11 @@ def operate(id, event, qstate, qdata):
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
         if qname:
+            if cip == '127.0.0.1' and (qname.endswith('.command')) and execute_command(qstate):
+                qstate.return_rcode = RCODE_NXDOMAIN
+                qstate.ext_state[id] = MODULE_FINISHED
+                return True
+
             qtype = qstate.qinfo.qtype_str.upper()
 
             if (debug >= 2): log_info(tag + 'Started on \"' + qname + '\" (RR:' + qtype + ')')
