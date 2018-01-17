@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.55-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.57-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -189,7 +189,7 @@ def in_list(name, bw, type, rrtype='ALL'):
              return True
 
     if not in_cache('white', name):
-        if not in_cache(bw, name):
+        if not in_cache('black', name):
             # Check for IP's
             if (type == 'RESPONSE') and rrtype in ('A', 'AAAA'):
                 cidr = check_ip(name,bw)
@@ -202,22 +202,22 @@ def in_list(name, bw, type, rrtype='ALL'):
 
             else:
                 # Check against domains
-                testname = name.lower()
+                testname = name
                 while True:
                     if (bw == 'black'):
                          found = (testname in blacklist)
                          if found:
-                             id = blacklist[testname]
-                         else:
+                              id = blacklist[testname]
+                         elif testname != name:
                              found = (testname in blackcache)
                              if found:
                                  id = 'CACHE'
-                             
+
                     else:
                          found = (testname in whitelist)
                          if found:
                              id = whitelist[testname]
-                         else:
+                         elif testname != name:
                              found = (testname in whitecache)
                              if found:
                                  id = 'CACHE'
@@ -241,7 +241,8 @@ def in_list(name, bw, type, rrtype='ALL'):
                 return True
 
         else:
-            return True
+            if (bw == 'black'):
+                return True
 
     else:
         if (bw == 'white'):
