@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.53-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.54-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -880,30 +880,30 @@ def execute_command(qstate):
             write_out(whitesave, blacksave)
         elif qname.endswith('.debug'):
             rc = True
-            debug = int('.'.join(qname.split('.')[:-2]))
+            debug = int('.'.join(qname.split('.')[:-1]))
             log_info(tag + 'Set debug to \"' + str(debug) + '\"')
         elif qname.endswith('.add.whitelist'):
             rc = True
-            domain = '.'.join(qname.split('.')[:-3])
+            domain = '.'.join(qname.split('.')[:-2])
             if not domain in whitelist:
                 log_info(tag + 'Added \"' + domain + '\" to whitelist')
                 whitelist[domain] = 'Whitelisted'
         elif qname.endswith('.add.blacklist'):
             rc = True
-            domain = '.'.join(qname.split('.')[:-3])
+            domain = '.'.join(qname.split('.')[:-2])
             if not domain in blacklist:
                 log_info(tag + 'Added \"' + domain + '\" to blacklist')
                 blacklist[domain] = 'Blacklisted'
         elif qname.endswith('.del.whitelist'):
             rc = True
-            domain = '.'.join(qname.split('.')[:-3])
+            domain = '.'.join(qname.split('.')[:-2])
             if domain in whitelist:
                 log_info(tag + 'Removed \"' + domain + '\" from whitelist')
                 del whitelist[domain]
                 clear_cache()
         elif qname.endswith('.del.blacklist'):
             rc = True
-            domain = '.'.join(qname.split('.')[:-3])
+            domain = '.'.join(qname.split('.')[:-2])
             if domain in blacklist:
                 log_info(tag + 'Removed \"' + domain + '\" from blacklist')
                 del blacklist[domain]
