@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.52-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.53-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -85,7 +85,7 @@ tagcount = 0
 
 # IP Address to redirect to, leave empty to generate REFUSED
 intercept_address = '192.168.1.250'
-intercept_host = 'dns-firewall.redirected.'
+intercept_host = 'sinkhole.'
 
 # List files
 # Per line you can specify:
@@ -126,6 +126,22 @@ filtering = True
 
 # Keep state/lock on commands
 command_in_progress = False
+
+# Queries within bewlow TLD (commandtld) will be concidered commands to execute
+# Only works from localhost (system running UNBOUND)
+# Query will return NXDOMAIN or timeout, this is normal.
+# Commands availble:
+# dig @127.0.0.1 <number>.debug.commandtld - Set debug level to <Number>
+# dig @127.0.0.1 save.cache.commandtld - Save cache to cachefile
+# dig @127.0.0.1 reload.commandtld - Reload saved lists
+# dig @127.0.0.1 force.reload.commandtld - Force fetching/processing of lists and reload
+# dig @127.0.0.1 pause.commandtld - Pause filtering (everything passthru)
+# dig @127.0.0.1 resume.commandtld - Resume filtering
+# dig @127.0.0.1 <domain>.add.whitelist.commandtld - Add <Domain> to blacklist
+# dig @127.0.0.1 <domain>.add.blacklist.commandtld - Add <Domain> to blacklist
+# dig @127.0.0.1 <domain>.del.whitelist.commandtld - Remove <Domain> from whitelist
+# dig @127.0.0.1 <domain>.del.blacklist.commandtld - Remove <Domain> from blacklist
+commandtld = '.command'
 
 # Check answers/responses as well
 checkresponse = True
@@ -804,6 +820,7 @@ def init(id, cfg):
     return True
 
 
+# Get DNS client IP
 def client_ip(qstate):
     reply_list = qstate.mesh_info.reply_list
 
@@ -815,6 +832,7 @@ def client_ip(qstate):
     return "0.0.0.0"
 
 
+# Commands to execute based on commandtld query
 def execute_command(qstate):
     global filtering
     global command_in_progress
@@ -828,25 +846,25 @@ def execute_command(qstate):
 
     command_in_progress = True
 
-    qname = qstate.qinfo.qname_str.rstrip('.').lower()
+    qname = qstate.qinfo.qname_str.rstrip('.').lower().replace(commandtld,'',1)
     rc = False
     if qname:
-        if qname == 'reload.command':
+        if qname == 'reload':
             rc = True
             log_info(tag + 'Reloading lists')
             load_lists(False)
-        elif qname == 'force.reload.command':
+        elif qname == 'force.reload':
             rc = True
             log_info(tag + 'FORCE Reloading lists')
             load_lists(True)
-        elif qname == 'pause.command':
+        elif qname == 'pause':
             rc = True
             if filtering:
                 log_info(tag + 'Filtering PAUSED')
                 filtering = False
             else:
                 log_info(tag + 'Filtering already PAUSED')
-        elif qname == 'resume.command':
+        elif qname == 'resume':
             rc = True
             if not filtering:
                 log_info(tag + 'Filtering RESUMED')
@@ -854,36 +872,36 @@ def execute_command(qstate):
                 filtering = True
             else:
                 log_info(tag + 'Filtering already RESUMED or Active')
-        elif qname == 'save.cache.command':
+        elif qname == 'save.cache':
             rc = True
             save_cache()
-        elif qname == 'save.list.command':
+        elif qname == 'save.list':
             rc = True
             write_out(whitesave, blacksave)
-        elif qname.endswith('.debug.command'):
+        elif qname.endswith('.debug'):
             rc = True
             debug = int('.'.join(qname.split('.')[:-2]))
             log_info(tag + 'Set debug to \"' + str(debug) + '\"')
-        elif qname.endswith('.add.whitelist.command'):
+        elif qname.endswith('.add.whitelist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if not domain in whitelist:
                 log_info(tag + 'Added \"' + domain + '\" to whitelist')
                 whitelist[domain] = 'Whitelisted'
-        elif qname.endswith('.add.blacklist.command'):
+        elif qname.endswith('.add.blacklist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if not domain in blacklist:
                 log_info(tag + 'Added \"' + domain + '\" to blacklist')
                 blacklist[domain] = 'Blacklisted'
-        elif qname.endswith('.del.whitelist.command'):
+        elif qname.endswith('.del.whitelist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if domain in whitelist:
                 log_info(tag + 'Removed \"' + domain + '\" from whitelist')
                 del whitelist[domain]
                 clear_cache()
-        elif qname.endswith('.del.blacklist.command'):
+        elif qname.endswith('.del.blacklist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if domain in blacklist:
@@ -955,7 +973,7 @@ def operate(id, event, qstate, qdata):
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
         if qname:
-            if cip == '127.0.0.1' and (qname.endswith('.command')) and execute_command(qstate):
+            if cip == '127.0.0.1' and (qname.endswith(commandtld)) and execute_command(qstate):
                 qstate.return_rcode = RCODE_NXDOMAIN
                 qstate.ext_state[id] = MODULE_FINISHED
                 return True
