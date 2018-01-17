@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.54-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.55-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -195,7 +195,7 @@ def in_list(name, bw, type, rrtype='ALL'):
                 cidr = check_ip(name,bw)
                 if cidr:
                     if (debug >= 2): log_info(tag + 'HIT on IP \"' + name + '\" in ' + bw + '-listed network ' + cidr)
-                    add_to_cache(bw, name, cidr)
+                    add_to_cache(bw, name)
                     return True
                 else:
                     return False
@@ -208,14 +208,24 @@ def in_list(name, bw, type, rrtype='ALL'):
                          found = (testname in blacklist)
                          if found:
                              id = blacklist[testname]
+                         else:
+                             found = (testname in blackcache)
+                             if found:
+                                 id = 'CACHE'
+                             
                     else:
                          found = (testname in whitelist)
                          if found:
                              id = whitelist[testname]
-
+                         else:
+                             found = (testname in whitecache)
+                             if found:
+                                 id = 'CACHE'
+                          
                     if found:
                         if (debug >= 2): log_info(tag + 'HIT on DOMAIN \"' + name + '\", matched against ' + bw + '-list-entry \"' + testname + '\" (' + str(id) + ')')
-                        add_to_cache(bw, name, testname)
+                        add_to_cache(bw, name)
+
                         return True
                     elif testname.find('.') == -1:
                         break
@@ -254,7 +264,7 @@ def in_cache(bw, name):
 
 
 # Add to cache
-def add_to_cache(bw, name, listentry=False):
+def add_to_cache(bw, name):
 
     if autoreverse:
         addarpa = rev_ip(name)
