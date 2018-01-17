@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.5-20180116 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.52-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -108,7 +108,7 @@ rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 
 # Cache
 cachesize = 2500
-cachettl = 1800
+cachettl = 120
 blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 cachefile = '/etc/unbound/cache.file'
@@ -818,6 +818,7 @@ def client_ip(qstate):
 def execute_command(qstate):
     global filtering
     global command_in_progress
+    global debug
 
     tag = 'DNS-FIREWALL COMMAND: '
 
@@ -859,26 +860,30 @@ def execute_command(qstate):
         elif qname == 'save.list.command':
             rc = True
             write_out(whitesave, blacksave)
-        elif (qname.endswith('.add.whitelist.command')):
+        elif qname.endswith('.debug.command'):
+            rc = True
+            debug = int('.'.join(qname.split('.')[:-2]))
+            log_info(tag + 'Set debug to \"' + str(debug) + '\"')
+        elif qname.endswith('.add.whitelist.command'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if not domain in whitelist:
                 log_info(tag + 'Added \"' + domain + '\" to whitelist')
                 whitelist[domain] = 'Whitelisted'
-        elif (qname.endswith('.add.blacklist.command')):
+        elif qname.endswith('.add.blacklist.command'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if not domain in blacklist:
                 log_info(tag + 'Added \"' + domain + '\" to blacklist')
                 blacklist[domain] = 'Blacklisted'
-        elif (qname.endswith('.del.whitelist.command')):
+        elif qname.endswith('.del.whitelist.command'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if domain in whitelist:
                 log_info(tag + 'Removed \"' + domain + '\" from whitelist')
                 del whitelist[domain]
                 clear_cache()
-        elif (qname.endswith('.del.blacklist.command')):
+        elif qname.endswith('.del.blacklist.command'):
             rc = True
             domain = '.'.join(qname.split('.')[:-3])
             if domain in blacklist:
