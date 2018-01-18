@@ -22,7 +22,7 @@ Anudeep-YouTube-Ads	black	https://raw.githubusercontent.com/anudeepND/youtubeads
 BaddBoys	black	https://raw.githubusercontent.com/mitchellkrogza/Badd-Boyz-Hosts/master/PULL_REQUESTS/domains.txt	/etc/unbound/baddboyz.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 BarbBlock	black	https://ssl.bblck.me/blacklists/domain-list.txt	/etc/unbound/barbblock.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 CoinBlocker	black	https://raw.githubusercontent.com/ZeroDot1/CoinBlockerLists/master/list.txt	/etc/unbound/coinblocker.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Dshield-Top10	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10.list	86400	^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)\s+(?P<entry>[a-zA-Z0-9\.\-]+)
+Dshield-Top10	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10.list	86400	^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)\s+(?P<entry>[a-zA-Z0-9\.\-]+)$
 Dshield-Top10-IP	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10-ip.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))\s
 Dshield-Suspicious	black	https://www.dshield.org/feeds/suspiciousdomains_High.txt	/etc/unbound/dshield-suspicious.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 FireHol1	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset	/etc/unbound/firehol1.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))$
@@ -34,10 +34,10 @@ Krogza-False-Positive-IPv6	white	https://raw.githubusercontent.com/mitchellkrogz
 #Krogza-Ultimate-IP	black	https://hosts.ubuntu101.co.za/ips.list	/etc/unbound/krogza-ultimate-ip.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 #Krogza-Ultimate-Domain	black	https://hosts.ubuntu101.co.za/domains.list	/etc/unbound/krogza-ultimate-domain.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Krogza-Hacked	black	https://raw.githubusercontent.com/mitchellkrogza/The-Big-List-of-Hacked-Malware-Web-Sites/master/hacked-domains.list	/etc/unbound/krogza-hacked.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-NoCoin	black	https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt	/etc/unbound/nocoin.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
-Notracking-Hosts	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt	/etc/unbound/notracking-hosts.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
-Notracking-Domains	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/domains.txt	/etc/unbound/notracking-domains.list	86400	^address=/(?P<entry>[a-zA-Z0-9\.\-]+)
-SpamHaus-Top10-TLD	black	https://www.spamhaus.org/statistics/tlds/	/etc/unbound/spamhaus-top10-tld.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
-SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc/unbound/spamhaus-top10-botnet.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
-Steven-Black-Hosts	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts	/etc/unbound/stevenblack.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
+NoCoin	black	https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt	/etc/unbound/nocoin.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)$
+Notracking-Hosts	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt	/etc/unbound/notracking-hosts.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)$
+Notracking-Domains	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/domains.txt	/etc/unbound/notracking-domains.list	86400	^address=/(?P<entry>[a-zA-Z0-9\.\-]+)/
+SpamHaus-Top10-TLD	black	https://www.spamhaus.org/statistics/tlds/	/etc/unbound/spamhaus-top10-tld.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)<
+SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc/unbound/spamhaus-top10-botnet.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)<
+Steven-Black-Hosts	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts	/etc/unbound/stevenblack.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)$
 Turris-Grey	black	https://project.turris.cz/greylist-data/greylist-latest.csv	/etc/unbound/turris-grey.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)),
