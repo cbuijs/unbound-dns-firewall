@@ -12,11 +12,11 @@
 Regex-Black	black	/etc/unbound/regex-blacklist
 Regex-White	white	/etc/unbound/regex-whitelist
 
-Adguard-Android	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/android.txt	/etc/unbound/adguard-android.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Adguard-Banks	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/banks.txt	/etc/unbound/adguard-banks.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Adguard-FireFox	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/firefox.txt	/etc/unbound/adguard-firefox.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Adguard-Issues	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/issues.txt	/etc/unbound/adguard-issues.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Adguard-Sensistive	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/sensitive.txt	/etc/unbound/adguard-sensitive.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+#Adguard-Android	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/android.txt	/etc/unbound/adguard-android.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+#Adguard-Banks	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/banks.txt	/etc/unbound/adguard-banks.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+#Adguard-FireFox	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/firefox.txt	/etc/unbound/adguard-firefox.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+#Adguard-Issues	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/issues.txt	/etc/unbound/adguard-issues.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+#Adguard-Sensistive	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/sensitive.txt	/etc/unbound/adguard-sensitive.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Anudeep	white	https://raw.githubusercontent.com/anudeepND/whitelist/master/whitelist.txt	/etc/unbound/anudeep.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Anudeep-YouTube-Ads	black	https://raw.githubusercontent.com/anudeepND/youtubeadsblacklist/master/domainlist.txt	/etc/unbound/anudeep-youtube-ads.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 BaddBoys	black	https://raw.githubusercontent.com/mitchellkrogza/Badd-Boyz-Hosts/master/PULL_REQUESTS/domains.txt	/etc/unbound/baddboyz.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
