@@ -1312,6 +1312,7 @@ malwaredomains.com
 mangomoney.ru
 manifest.googlevideo.com
 manimo.su
+mapcam.info
 marcard.de
 marfinbank.ua
 margevicius.lt
@@ -2090,6 +2091,7 @@ retail.mvbank.ru
 retail.nrb.ru
 retail.santander.co.uk
 retail.sdm.ru
+review.lineageos.org
 rfcu.com
 rficb.ru
 rgsbank.ru
@@ -3158,6 +3160,9 @@ zkb.ch
 zkb.ru
 zoso.ro
 ### WHITELIST CIDRs ###
+8.8.4.4/32
+8.8.8.8/32
+9.9.9.9/32
 2001:4860:4000::/36
 35.192.0.0/12
 2400:cb00::/32
