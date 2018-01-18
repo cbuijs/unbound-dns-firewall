@@ -1,38 +1,43 @@
-# Syntax:
-# <Name>,<black|white>,<file|url>,[savefile[,listage[,filter-regex]]]
+# Syntax (tab-sepperated):
+# <name> <black|white> <source-file|source-url> [<save-file>[ <ttl>[ regex]]]
+# regex needs to include a group/anchor named 'entry', e.g.: (?P<entry> ...)'
 #
-# <Name> - Name/Identifier for logging/naming purposes
-# <black|white> - Blacklist or Whitelist
-# <file|url> - File or URL containing list
-# [savefile] - File to save/cache (processed) list to, when not specified, the name plus extension ".list' will be used
-# [listage] - Minimum age (in seconds) of savefile before refresh/download, when not specified, 24 hours will be used
-# [filter-regex] - Regex to grab domain/ip with, use "(?P<entry> ...)" group-identifier to indentify/anchor, when not specified the whole line will be used.
+# Example regexes:
+# domain/hostname: (?P<entry>[a-zA-Z0-9\.\-]+)
+# IP-Addres (v4 and v6): (?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))
 
-# Local lists
-#whitelist	white	/etc/unbound/whitelist
-#blacklist	black	/etc/unbound/blacklist
-Regex-White	white	/etc/unbound/regex-whitelist
+#Default-Blacklist	black	/etc/unbound/blacklist
+#Default-Whitelist	white	/etc/unbound/whitelist
+
 Regex-Black	black	/etc/unbound/regex-blacklist
+Regex-White	white	/etc/unbound/regex-whitelist
 
-# Internet based lists
 Adguard-Android	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/android.txt	/etc/unbound/adguard-android.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Adguard-Banks	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/banks.txt	/etc/unbound/adguard-banks.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Adguard-FireFox	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/firefox.txt	/etc/unbound/adguard-firefox.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Adguard-Issues	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/issues.txt	/etc/unbound/adguard-issues.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Adguard-Sensistive	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/sensitive.txt	/etc/unbound/adguard-sensitive.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Anudeep	white	https://raw.githubusercontent.com/anudeepND/whitelist/master/whitelist.txt	/etc/unbound/anudeep.list	86400	^(?P<entry>.+)$
+Anudeep	white	https://raw.githubusercontent.com/anudeepND/whitelist/master/whitelist.txt	/etc/unbound/anudeep.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Anudeep-YouTube-Ads	black	https://raw.githubusercontent.com/anudeepND/youtubeadsblacklist/master/domainlist.txt	/etc/unbound/anudeep-youtube-ads.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 BaddBoys	black	https://raw.githubusercontent.com/mitchellkrogza/Badd-Boyz-Hosts/master/PULL_REQUESTS/domains.txt	/etc/unbound/baddboyz.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 BarbBlock	black	https://ssl.bblck.me/blacklists/domain-list.txt	/etc/unbound/barbblock.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 CoinBlocker	black	https://raw.githubusercontent.com/ZeroDot1/CoinBlockerLists/master/list.txt	/etc/unbound/coinblocker.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-FireHol1	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset	/etc/unbound/firehol1.list	86400	^(?P<entry>[0-9].+)$
-Krogza-False-Positive	white	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/DOMAINS-whitelist.txt	/etc/unbound/krogza-fp.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
-Krogza-False-Positive-IPv4	white	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/IPV4-whitelist.txt	/etc/unbound/krogza-ipv4.list	86400	^(?P<entry>[0-9].+)$
-Krogza-False-Positive-IPv6	white	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/IPV6-whitelist.txt	/etc/unbound/krogza-ipv6.list	86400	^(?P<entry>[0-9].+)$
+Dshield-Top10	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10.list	86400	^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)\s+(?P<entry>[a-zA-Z0-9\.\-]+)
+Dshield-Top10-IP	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10-ip.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))\s
+Dshield-Suspicious	black	https://www.dshield.org/feeds/suspiciousdomains_High.txt	/etc/unbound/dshield-suspicious.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+FireHol1	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset	/etc/unbound/firehol1.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))$
+FireHol2	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset	/etc/unbound/firehol2.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))$
+FireHol3	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset	/etc/unbound/firehol3.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))$
+#Krogza-False-Positive	white	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/DOMAINS-whitelist.txt	/etc/unbound/krogza-fp.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+Krogza-False-Positive-IPv4	white	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/IPV4-whitelist.txt	/etc/unbound/krogza-ipv4.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))$
+Krogza-False-Positive-IPv6	white	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/IPV6-whitelist.txt	/etc/unbound/krogza-ipv6.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))$
+#Krogza-Ultimate-IP	black	https://hosts.ubuntu101.co.za/ips.list	/etc/unbound/krogza-ultimate-ip.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
+#Krogza-Ultimate-Domain	black	https://hosts.ubuntu101.co.za/domains.list	/etc/unbound/krogza-ultimate-domain.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 Krogza-Hacked	black	https://raw.githubusercontent.com/mitchellkrogza/The-Big-List-of-Hacked-Malware-Web-Sites/master/hacked-domains.list	/etc/unbound/krogza-hacked.list	86400	^(?P<entry>[a-zA-Z0-9\.\-]+)$
 NoCoin	black	https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt	/etc/unbound/nocoin.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
-Notracking-Domains	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/domains.txt	/etc/unbound/notracking-domains.list	86400	^address=/(?P<entry>[^/]+)
 Notracking-Hosts	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt	/etc/unbound/notracking-hosts.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
-SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc/unbound/spamhaus-top10-botnet.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
+Notracking-Domains	black	https://raw.githubusercontent.com/notracking/hosts-blocklists/master/domains.txt	/etc/unbound/notracking-domains.list	86400	^address=/(?P<entry>[a-zA-Z0-9\.\-]+)
 SpamHaus-Top10-TLD	black	https://www.spamhaus.org/statistics/tlds/	/etc/unbound/spamhaus-top10-tld.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
-Steven-Black	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts	/etc/unbound/stevenblack.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
+SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc/unbound/spamhaus-top10-botnet.list	86400	^.*class=\"subtitle\">[\.]*(?P<entry>[^<]+)
+Steven-Black-Hosts	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts	/etc/unbound/stevenblack.list	86400	^0\.0\.0\.0\s+(?P<entry>[a-zA-Z0-9\.\-]+)
+Turris-Grey	black	https://project.turris.cz/greylist-data/greylist-latest.csv	/etc/unbound/turris-grey.list	86400	^(?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)),
