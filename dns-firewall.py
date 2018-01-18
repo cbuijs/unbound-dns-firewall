@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.6-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.61-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -174,6 +174,9 @@ isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus under
 
 # Regex for excluded entries to fix issues
 exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+
+# Regex for www entries
+wwwregex = regex.compile('^www+\..*\..*$', regex.I)
 
 #########################################################################################
 
@@ -520,7 +523,6 @@ def read_list(id, name, regexlist, iplist, domainlist):
                     entry = line.strip()
                     if not (entry.startswith("#")) and not (len(entry) == 0):
                         if not (exclude.match(entry)):
-
                             if (isregex.match(entry)):
                                 # It is an Regex
                                 cleanregex = entry.strip('/')
@@ -544,6 +546,13 @@ def read_list(id, name, regexlist, iplist, domainlist):
 
                             elif (isdomain.match(entry)):
                                     # It is a domain
+
+                                    # Strip 'www." if appropiate
+                                    if wwwregex.match(entry):
+                                        label = entry.split('.')[0]
+                                        if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
+                                        entry = '.'.join(entry.split('.')[1:])
+
                                     #domainlist[entry.strip('.').lower()] = True
                                     domainlist[entry.strip('.').lower()] = str(id)
                                     domaincount += 1
