@@ -39,7 +39,7 @@
 /^(.*\.)*(www[-]*)*google[-]*(analytic[s]*|(ad|tag)[-]*manager)\./
 /^(.*\.)double[-]*clic(k|k[-]*by[-]*google)\./
 /^(google|partner|pub)ad[s]*(api[s]*)*\./
-# Top-N advertisers/trackers domain(parts)
+# Top-N advertiser/tracker domains/parts
 /^(.*\.)*(beget|bango|flurry|krxd|moatads|mookie[1-9]*|nuggad|omtrdc|p2l|quants[e]*rv[e]*|onestat|onthe|pop(cash|check|test|under|up)|revsci|scorecardresearch|sitestat|tacoda|tynt)\./
 /^(.*\.)*(o0bc|2mdn|2o7|302br|adtech([-]*[a-z]+)*|amazon[-]*adsystem|atwola|bkrtx|bluekai|chartbeat|crwdcntrl|d(e|o)mdex|effectivemeasure|falkag|fwmrm|gemius)\./
 /^(.*\.)*(hotjar|imrworldwide|intellitxt|lijit|mixpanel|ms[-]*adcenter|netklix|outbrain|petrovka|pixel|syndication|rubiconproject|taboola|xiti|usergrid|visualrevenue)\./
