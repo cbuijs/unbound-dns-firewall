@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.61-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.65-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -140,6 +140,7 @@ command_in_progress = False
 # dig @127.0.0.1 force.reload.commandtld - Force fetching/processing of lists and reload
 # dig @127.0.0.1 pause.commandtld - Pause filtering (everything passthru)
 # dig @127.0.0.1 resume.commandtld - Resume filtering
+# dig @127.0.0.1 maintenance.commandtld - Run maintenance
 # dig @127.0.0.1 <domain>.add.whitelist.commandtld - Add <Domain> to blacklist
 # dig @127.0.0.1 <domain>.add.blacklist.commandtld - Add <Domain> to blacklist
 # dig @127.0.0.1 <domain>.del.whitelist.commandtld - Remove <Domain> from whitelist
@@ -149,11 +150,17 @@ commandtld = '.command'
 # Check answers/responses as well
 checkresponse = True
 
+# Maintenance after x queries
+maintenance = 1000
+
 # Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
 
 # Block IPv6 queries/responses
 blockv6 = True
+
+# CNAME Collapsing
+collapse = True
 
 # Default maximum age of downloaded lists, can be overruled in lists file
 maxlistage = 86400 # In seconds
@@ -176,7 +183,7 @@ isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus under
 exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 
 # Regex for www entries
-wwwregex = regex.compile('^www+\..*\..*$', regex.I)
+wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
 
 #########################################################################################
 
@@ -348,6 +355,7 @@ def clear_lists():
     tag = 'DNS-FIREWALL LISTS: '
 
     log_info(tag + 'Clearing Lists')
+
     rwhitelist.clear()
     whitelist.clear()
     for i in cwhitelist.keys():
@@ -370,6 +378,39 @@ def clear_cache():
     log_info(tag + 'Clearing Cache')
     blackcache.clear()
     whitecache.clear()
+
+    return True
+
+
+# Maintenance lists
+def maintenance_lists(count):
+    tag = 'DNS-FIREWALL MAINTENACE: '
+
+    global command_in_progress
+
+    if command_in_progress:
+        log_info(tag + 'ALREADY PROCESSING')
+        return True
+
+    command_in_progress = True
+
+    log_info(tag + 'Maintenance Started')
+
+    age = file_exist(whitesave)
+    if age and age < maxlistage:
+        age = file_exist(blacksave)
+        if age and age < maxlistage:
+            log_info(tag + 'Nothing to do. Done')
+            command_in_progress = False
+            return False
+
+    log_info(tag + 'Updating Lists')
+
+    load_lists(False, True)
+
+    log_info(tag + 'Maintenance Done')
+
+    command_in_progress = False
 
     return True
 
@@ -904,7 +945,7 @@ def execute_command(qstate):
             load_lists(False, False)
         elif qname == 'force.update':
             rc = True
-            log_info(tag + 'Updating lists')
+            log_info(tag + 'Force updating lists')
             load_lists(True, False)
         elif qname == 'pause':
             rc = True
@@ -927,6 +968,9 @@ def execute_command(qstate):
         elif qname == 'save.list':
             rc = True
             write_out(whitesave, blacksave)
+        elif qname == 'maintenance':
+            rc = True
+            maintenance_lists(True)
         elif qname.endswith('.debug'):
             rc = True
             debug = int('.'.join(qname.split('.')[:-1]))
@@ -1010,6 +1054,9 @@ def operate(id, event, qstate, qdata):
 
     tagcount += 1
 
+    if (tagcount) % maintenance == 0:
+        start_new_thread(maintenance_lists, (True,)) # !!! EXPERIMENTAL !!!
+
     cip = client_ip(qstate)
 
     # New query or new query passed by other module
@@ -1087,6 +1134,13 @@ def operate(id, event, qstate, qdata):
                     if qname:
                         qtype = qstate.qinfo.qtype_str.upper()
                         if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
+
+                        # Pre-set some variables for cname collapsing (only for domains not black/whitelisted
+                        firstname = False
+                        firsttype = False
+                        lasttype = False
+                        lastname = set()
+
                         if not in_cache('white', qname):
                             if not in_cache('black', qname):
                                 # Loop through RRSets
@@ -1094,6 +1148,10 @@ def operate(id, event, qstate, qdata):
                                     rk = rep.rrsets[i].rk
                                     type = rk.type_str.upper()
                                     dname = rk.dname_str.rstrip('.').lower()
+
+                                    if i == 0 and type == 'CNAME':
+                                        firstname = dname
+                                        firsttype = type
 
                                     # Start checking if black/whitelisted
                                     if dname:
@@ -1132,7 +1190,12 @@ def operate(id, event, qstate, qdata):
     
                                                         # If we have a name, process it
                                                         if name:
+                                                            if type == 'A':
+                                                                lasttype = type
+                                                                lastname.add(name)
+
                                                             if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
+
                                                             # Not Whitelisted?
                                                             if not in_list(name, 'white', 'RESPONSE', type):
                                                                 # Blacklisted?
@@ -1206,6 +1269,25 @@ def operate(id, event, qstate, qdata):
                             else:
                                 if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
                                 qstate.return_rcode = RCODE_REFUSED
+
+                        elif collapse and firstname and firsttype == 'CNAME' and (len(lastname) > 0) and lasttype == 'A':
+                            # !!!! Add IPv6/AAAA support !!!!
+                            rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
+                            for lname in lastname:
+                                log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
+                                rmsg.answer.append('%s %d IN A %s' % (firstname, cachettl, lname))
+                            rmsg.set_return_msg(qstate)
+                            if not rmsg.set_return_msg(qstate):
+                                log_err(tag + 'GENERATE-RESPONSE ERROR: ' + str(rmsg.answer))
+                                return False
+
+                            if qstate.return_msg.qinfo:
+                                invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
+
+                            qstate.no_cache_store = 0
+                            storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 0)
+
+                            qstate.return_msg.rep.security = 2
 
                         if (debug >= 2): log_info(tag + 'Finished on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
