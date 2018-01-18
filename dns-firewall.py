@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.58-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.6-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -179,6 +179,7 @@ exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]
 
 # Check against lists
 def in_list(name, bw, type, rrtype='ALL'):
+    tag = 'DNS-FIREWALL FILTER: '
     if not filtering:
         if (debug >= 2): log_info(tag + 'Filtering disabled, passthru \"' + name + '\" (RR:' + rrtype + ')')
         return False
@@ -255,6 +256,7 @@ def in_list(name, bw, type, rrtype='ALL'):
 
 # Check cache
 def in_cache(bw, name):
+    tag = 'DNS-FIREWALL FILTER: '
     if (bw == 'black'):
         if name in blackcache:
             if (debug >= 2): log_info(tag + 'Found \"' + name + '\" in black-cache')
@@ -269,6 +271,7 @@ def in_cache(bw, name):
 
 # Add to cache
 def add_to_cache(bw, name):
+    tag = 'DNS-FIREWALL FILTER: '
 
     if autoreverse:
         addarpa = rev_ip(name)
@@ -308,6 +311,7 @@ def check_ip(ip, bw):
 
 # Check against REGEX lists (called from in_list)
 def check_regex(name, bw):
+    tag = 'DNS-FIREWALL FILTER: '
     if (bw == 'black'):
         rlist = rblacklist
     else:
@@ -500,7 +504,7 @@ def load_lists(force, savelists):
 
 # Read file/list
 def read_list(id, name, regexlist, iplist, domainlist):
-    TAG = 'DNS-FIREWALL LISTS: '
+    tag = 'DNS-FIREWALL LISTS: '
 
     if (len(name) > 0):
         try:
@@ -704,6 +708,7 @@ def uncomplicate_list(wlist, blist):
     for domain in listw:
         child = domain + '.'
         if child in checklistb:
+            if (debug >= 3): log_info(tag + 'Checking against \"' + reverse_hash(child) + '\"')
             for found in filter(lambda x: x.startswith(child), listb):
                 if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse_hash(found) + '\" due to whitelisted parent \"' + reverse_hash(domain) + '\"')
                 listb.remove(found)
@@ -715,7 +720,7 @@ def uncomplicate_list(wlist, blist):
     # Remove blacklisted entries when matched against whitelist regex
     for i in range(0,len(rwhitelist)/3):
         checkregex = rwhitelist[i,1]
-        if (debug >= 2): log_info(tag + 'Checking against white-regex \"' + rwhitelist[i,2] + '\"')
+        if (debug >= 3): log_info(tag + 'Checking against white-regex \"' + rwhitelist[i,2] + '\"')
         for found in filter(checkregex.search, listb):
             listb.remove(found)
             if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
@@ -745,7 +750,7 @@ def unreg_list(dlist, rlist, listname):
     count = 0
     for i in range(0,len(rlist)/3):
         checkregex = rlist[i,1]
-        if (debug >= 2): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
+        if (debug >= 3): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
 	for found in filter(checkregex.search, dlist):
             count += 1
             name = dlist.pop(found, None)
@@ -833,6 +838,7 @@ def init(id, cfg):
 
     # Read Lists
     load_lists(False, savelists)
+    #start_new_thread(load_lists, (savelists,)) # !!! EXPERIMENTAL !!!
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -1009,8 +1015,9 @@ def operate(id, event, qstate, qdata):
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
         if qname:
+            #if cip == '127.0.0.1' and (qname.endswith(commandtld)) and execute_command(qstate):
             if cip == '127.0.0.1' and (qname.endswith(commandtld)):
-                start_new_thread(execute_command, (qstate,))
+                start_new_thread(execute_command, (qstate,)) # !!! EXPERIMENTAL !!!
 
                 qstate.return_rcode = RCODE_NXDOMAIN
                 qstate.ext_state[id] = MODULE_FINISHED
