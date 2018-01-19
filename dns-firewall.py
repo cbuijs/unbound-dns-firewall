@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.65-20180117 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.68-20180119 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -151,7 +151,7 @@ commandtld = '.command'
 checkresponse = True
 
 # Maintenance after x queries
-maintenance = 1000
+maintenance = 5000
 
 # Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
@@ -662,7 +662,7 @@ def generate_response(qstate, rname, rtype, rrtype):
             qname = rname + '.'
 
         if qname:
-		rmsg.answer.append('%s %d IN A %s' % (qname, cachettl, intercept_address))
+            rmsg.answer.append('%s %d IN A %s' % (qname, cachettl, intercept_address))
 
         rmsg.set_return_msg(qstate)
 
@@ -1137,9 +1137,10 @@ def operate(id, event, qstate, qdata):
 
                         # Pre-set some variables for cname collapsing (only for domains not black/whitelisted
                         firstname = False
+                        firstttl = False
                         firsttype = False
                         lasttype = False
-                        lastname = set()
+                        lastname = dict()
 
                         if not in_cache('white', qname):
                             if not in_cache('black', qname):
@@ -1151,6 +1152,7 @@ def operate(id, event, qstate, qdata):
 
                                     if i == 0 and type == 'CNAME':
                                         firstname = dname
+                                        firstttl = rep.ttl
                                         firsttype = type
 
                                     # Start checking if black/whitelisted
@@ -1190,9 +1192,9 @@ def operate(id, event, qstate, qdata):
     
                                                         # If we have a name, process it
                                                         if name:
-                                                            if type == 'A':
+                                                            if type in ('A', 'AAAA'):
                                                                 lasttype = type
-                                                                lastname.add(name)
+                                                                lastname[name] = type
 
                                                             if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
 
@@ -1270,15 +1272,21 @@ def operate(id, event, qstate, qdata):
                                 if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
                                 qstate.return_rcode = RCODE_REFUSED
 
-                        elif collapse and firstname and firsttype == 'CNAME' and (len(lastname) > 0) and lasttype == 'A':
-                            # !!!! Add IPv6/AAAA support !!!!
+                        elif collapse and firstname and firsttype == 'CNAME' and (len(lastname) > 0):
                             rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
-                            for lname in lastname:
-                                log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
-                                rmsg.answer.append('%s %d IN A %s' % (firstname, cachettl, lname))
+                            for lname in lastname.keys():
+				if lastname[lname] == 'A':
+                                    log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
+                                    rmsg.answer.append('%s %d IN A %s' % (firstname, firstttl, lname))
+                                #elif lastname[lname] == 'AAAA':
+                                elif not blockv6 and lastname[lname] == 'AAAA':
+                                    # !!!! Add IPv6/AAAA support !!!!
+                                    print 'NOT COLLAPSE AAAA', firstname, lname
+                                    log_info (tag + 'COLLAPSE CNAME SKIPPED for \"' + firstname + '\" due to AAAA record')
+
                             rmsg.set_return_msg(qstate)
                             if not rmsg.set_return_msg(qstate):
-                                log_err(tag + 'GENERATE-RESPONSE ERROR: ' + str(rmsg.answer))
+                                log_err(tag + 'CNAME COLLAPSE ERROR: ' + str(rmsg.answer))
                                 return False
 
                             if qstate.return_msg.qinfo:
