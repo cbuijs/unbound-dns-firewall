@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.68-20180119 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.69-20180119 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -445,7 +445,7 @@ def load_lists(force, savelists):
     try:
         with open(lists, 'r') as f:
             for line in f:
-                entry = line.strip().strip('\r')
+                entry = line.strip().replace('\r', '')
                 if not (entry.startswith("#")) and not (len(entry) == 0):
                     element = entry.split('\t')
                     if len(element) > 2:
@@ -561,7 +561,7 @@ def read_list(id, name, regexlist, iplist, domainlist):
                 domaincount = 0
 
                 for line in f:
-                    entry = line.strip().strip('\r')
+                    entry = line.strip().replace('\r', '')
                     if not (entry.startswith("#")) and not (len(entry) == 0):
                         if not (exclude.match(entry)):
                             if (isregex.match(entry)):
