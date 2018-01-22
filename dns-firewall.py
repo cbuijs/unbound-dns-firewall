@@ -151,7 +151,7 @@ commandtld = '.command'
 checkresponse = True
 
 # Maintenance after x queries
-maintenance = 5000
+maintenance = 10000
 
 # Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
@@ -180,7 +180,7 @@ isregex = regex.compile('^/.*/$')
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
-exclude = regex.compile('^((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|googlevideo\.com)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -445,12 +445,12 @@ def load_lists(force, savelists):
     try:
         with open(lists, 'r') as f:
             for line in f:
-                entry = line.strip()
+                entry = line.strip().strip('\r')
                 if not (entry.startswith("#")) and not (len(entry) == 0):
                     element = entry.split('\t')
                     if len(element) > 2:
                         id = element[0]
-                        bw = element[1]
+                        bw = element[1].lower()
                         if (bw == 'black' and readblack) or (bw == 'white' and readwhite):
                             file = element[2]
                             if (file.find('http://') == 0) or (file.find('https://') == 0):
@@ -482,7 +482,7 @@ def load_lists(force, savelists):
                                     if r.status_code == 200:
                                         try:
                                             with open(file + '.download', 'w') as f:
-                                                f.write(r.text.encode('ascii', 'ignore'))
+                                                f.write(r.text.encode('ascii', 'ignore').replace('\r', ''))
 
                                             try:
                                                 with open(file + '.download', 'r') as f:
@@ -561,7 +561,7 @@ def read_list(id, name, regexlist, iplist, domainlist):
                 domaincount = 0
 
                 for line in f:
-                    entry = line.strip()
+                    entry = line.strip().strip('\r')
                     if not (entry.startswith("#")) and not (len(entry) == 0):
                         if not (exclude.match(entry)):
                             if (isregex.match(entry)):
@@ -1054,7 +1054,7 @@ def operate(id, event, qstate, qdata):
 
     tagcount += 1
 
-    if (tagcount) % maintenance == 0:
+    if maintenance and ((tagcount) % maintenance == 0):
         start_new_thread(maintenance_lists, (True,)) # !!! EXPERIMENTAL !!!
 
     cip = client_ip(qstate)
