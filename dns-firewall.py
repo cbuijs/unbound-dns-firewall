@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.69-20180119 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.8-20180124 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -180,7 +180,7 @@ isregex = regex.compile('^/.*/$')
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
-exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|googlevideo\.com)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|google\.com|googlevideo\.com)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -354,6 +354,13 @@ def rev_ip(ip):
 def clear_lists():
     tag = 'DNS-FIREWALL LISTS: '
 
+    global blacklist
+    global whitelist
+    global rblacklist
+    global rwhitelist
+    global cblacklist
+    global cwhitelist
+
     log_info(tag + 'Clearing Lists')
 
     rwhitelist.clear()
@@ -433,13 +440,13 @@ def load_lists(force, savelists):
         age = file_exist(whitesave)
         if age and age < maxlistage and not disablewhitelist:
             log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_list('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist)
+            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist)
             readwhite = False
 
         age = file_exist(blacksave)
         if age and age < maxlistage:
             log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_list('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist)
+            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist)
             readblack = False
 
     try:
@@ -488,11 +495,15 @@ def load_lists(force, savelists):
                                                 with open(file + '.download', 'r') as f:
                                                     try:
                                                         with open(file, 'w') as g:
+                                                            seen = set()
                                                             for line in f:
                                                                 matchentry = regex.match(fregex, line)
                                                                 if matchentry:
-                                                                    g.write(matchentry.group('entry'))
-                                                                    g.write('\n')
+                                                                    entry = matchentry.group('entry')
+                                                                    if entry and not entry in seen:
+                                                                        g.write(entry)
+                                                                        g.write('\n')
+                                                                        seen.add(entry)
 
                                                     except IOError:
                                                         log_err(tag + 'Unable to write to file \"' + file + '\"')
@@ -510,10 +521,10 @@ def load_lists(force, savelists):
                                     log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
 
                             if bw == 'black':
-                                read_list(id, file, rblacklist, cblacklist, blacklist)
+                                read_lists(id, file, rblacklist, cblacklist, blacklist)
                             else:
                                 if not disablewhitelist:
-                                    read_list(id, file, rwhitelist, cwhitelist, whitelist)
+                                    read_lists(id, file, rwhitelist, cwhitelist, whitelist)
                         else:
                             log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
                     else:
@@ -527,15 +538,15 @@ def load_lists(force, savelists):
 
     # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
     if readblack:
-        optimize_domlist(whitelist, 'white', 'WhiteDoms')
-        unreg_list(whitelist, rwhitelist, 'WhiteDoms')
+        optimize_domlists('white', 'WhiteDoms')
+        unreg_lists('white', 'WhiteDoms')
     if readwhite:
-        optimize_domlist(blacklist, 'black', 'BlackDoms')
-        unreg_list(blacklist, rblacklist, 'BlackDoms')
+        optimize_domlists('black', 'BlackDoms')
+        unreg_lists('black', 'BlackDoms')
 
     if readblack or readwhite:
         # Remove whitelisted entries from blaclist
-        uncomplicate_list(whitelist, blacklist)
+        uncomplicate_lists()
 
         # Save processed list for distribution
         write_out(whitesave, blacksave)
@@ -547,7 +558,7 @@ def load_lists(force, savelists):
 
 
 # Read file/list
-def read_list(id, name, regexlist, iplist, domainlist):
+def read_lists(id, name, regexlist, iplist, domainlist):
     tag = 'DNS-FIREWALL LISTS: '
 
     if (len(name) > 0):
@@ -594,9 +605,11 @@ def read_list(id, name, regexlist, iplist, domainlist):
                                         if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
                                         entry = '.'.join(entry.split('.')[1:])
 
-                                    #domainlist[entry.strip('.').lower()] = True
-                                    domainlist[entry.strip('.').lower()] = str(id)
-                                    domaincount += 1
+                                    entry = entry.strip('.').lower()
+                                    if entry:
+                                        domainlist[entry] = str(id)
+                                        domaincount += 1
+
                             else:
                                 log_err(tag + name + ': Invalid line \"' + entry + '\"')
                             
@@ -683,36 +696,32 @@ def generate_response(qstate, rname, rtype, rrtype):
     return False
 
 
-# Simple string reverser, reverse string and add tic-tac-toe-grid (#) to start, and reverse/undo when already so
-def reverse_hash(s):
-    if s.find('#') == -1:
-        s = '#' + s[::-1]
-    else:
-        s = s[::-1]
-
-    return s.rstrip('#')
-
-
 # Domain aggregator, removes subdomains if parent exists
-def optimize_domlist(name, bw, listname):
+def optimize_domlists(bw, listname):
     tag = 'DNS-FIREWALL LISTS: '
+
+    global blacklist
+    global whitelist
 
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
 
     # Get all keys (=domains) into a sorted/uniqued list
-    domlist = sorted(map(reverse_hash, name.keys()))
+    if (bw == 'black'):
+	name = blacklist
+    else:
+        name = whitelist
+
+    domlist = dom_sort(name.keys())
 
     # Remove all subdomains
-    parent = None
+    parent = False
     undupped = set()
     for domain in domlist:
-        if not parent or not domain.startswith(parent):
+        if not parent or not domain.endswith(parent):
             undupped.add(domain)
-            parent = domain + '.'
+            parent = '.' + domain.lstrip('.')
         else:
-            if (debug >= 3): log_info(tag + '\"' + listname + '\": Removed domain \"' + reverse_hash(domain) + '\" redundant by parent \"' + reverse_hash(parent).strip('.') + '\"')
-
-    undupped = map(reverse_hash, undupped)
+            if (debug >= 3): log_info(tag + '\"' + listname + '\": Removed domain \"' + domain + '\" redundant by parent \"' + parent.strip('.') + '\"')
 
     # New/Work dictionary
     new = dict()
@@ -723,9 +732,13 @@ def optimize_domlist(name, bw, listname):
 
     # Some counting/stats
     before = len(name)
-    name = new
-    after = len(name)
+    after = len(new)
     count = after - before
+
+    if (bw == 'black'):
+        blacklist = new
+    else:
+        whitelist = new
 
     if (debug >= 2): log_info(tag + '\"' + listname + '\": Number of domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
@@ -739,34 +752,35 @@ def optimize_domlist(name, bw, listname):
 # !!! NEEDS WORK, TOO SLOW !!!
 # !!! Also not really necesarry as already taken care of by logic in the procedures !!!
 # !!! Just memory saver and potential speed up as lists are smaller !!!
-def uncomplicate_list(wlist, blist):
+def uncomplicate_lists():
     tag = 'DNS-FIREWALL LISTS: '
+
+    global blacklist
+    global whitelist
+    global rwhitelist
 
     log_info(tag + 'Uncomplicating black/whitelists')
 
-    listw = set(map(reverse_hash, wlist.keys()))
-    listb = set(map(reverse_hash, blist.keys()))
+    listw = dom_sort(whitelist.keys())
+    listb = dom_sort(blacklist.keys())
 
     # Remove all 1-to-1/same whitelisted entries from blacklist
     # !!! We need logging on this !!!
-    listb = listb.difference(listw)
+    listb = dom_sort(list(set(listb).difference(listw)))
 
     # Create checklist for speed
-    checklistb = ''.join(listb)
+    checklistb = '#'.join(listb) + '#'
 
     # loop through whitelist entries and find parented entries in blacklist to remove
     for domain in listw:
-        child = domain + '.'
-        if child in checklistb:
-            if (debug >= 3): log_info(tag + 'Checking against \"' + reverse_hash(child) + '\"')
-            for found in filter(lambda x: x.startswith(child), listb):
-                if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + reverse_hash(found) + '\" due to whitelisted parent \"' + reverse_hash(domain) + '\"')
+        if '.' + domain + '#' in checklistb:
+            if (debug >= 3): log_info(tag + 'Checking against \"' + domain + '\"')
+            for found in filter(lambda x: x.endswith('.' + domain), listb):
+                if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + found + '\" due to whitelisted parent \"' + domain + '\"')
                 listb.remove(found)
 
-            checklistb = ''.join(listb)
+            checklistb = '#'.join(listb) + "#"
                 
-    listb = sorted(map(reverse_hash, listb))
-
     # Remove blacklisted entries when matched against whitelist regex
     for i in range(0,len(rwhitelist)/3):
         checkregex = rwhitelist[i,1]
@@ -780,20 +794,33 @@ def uncomplicate_list(wlist, blist):
 
     # Build new dictionary preserving id/category
     for domain in listb:
-        new[domain] = blist[domain]
+        new[domain] = blacklist[domain]
 
-    before = len(blist)
-    blist = new
-    after = len(blist)
+    before = len(blacklist)
+    after = len(new)
     count = after - before
+
+    blacklist = new
 
     if (debug >= 2): log_info(tag + 'Number of blocklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
     return True
 
 
 # Remove entries from domains already matchin regex
-def unreg_list(dlist, rlist, listname):
+def unreg_lists(bw, listname):
     tag = 'DNS-FIREWALL LISTS: '
+
+    global blacklist
+    global whitelist
+    global rblacklist
+    global rwhitelist
+
+    if (bw == 'black'):
+        dlist = blacklist
+        rlist = rblacklist
+    else:
+        dlist = whitelist
+        rlist = rwhitelist
 
     log_info(tag + 'Unregging \"' + listname + '\"')
 
@@ -805,6 +832,11 @@ def unreg_list(dlist, rlist, listname):
             count += 1
             name = dlist.pop(found, None)
             if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + name + '\", already matched by regex \"' + rlist[i,2] + '\"')
+
+    if (bw == 'black'):
+        blacklist = dlist
+    else:
+        whitelist = dlist
 
     if (debug >= 2): log_info(tag + 'Removed ' + str(count) + ' entries from \"' + listname + '\"')
     return True
@@ -827,7 +859,7 @@ def write_out(whitefile, blackfile):
                 f.write('\n')
 
             f.write('### WHITELIST DOMAINS ###\n')
-            for line in sorted(whitelist.keys()):
+            for line in dom_sort(whitelist.keys()):
                 f.write(line)
                 f.write('\n')
 
@@ -849,7 +881,7 @@ def write_out(whitefile, blackfile):
                 f.write('\n')
 
             f.write('### BLACKLIST DOMAINS ###\n')
-            for line in sorted(blacklist.keys()):
+            for line in dom_sort(blacklist.keys()):
                 f.write(line)
                 f.write('\n')
 
@@ -864,6 +896,16 @@ def write_out(whitefile, blackfile):
         log_err(tag + 'Unable to write to file \"' + blackfile + '\"')
 
     return True
+
+
+# Domain sort
+def dom_sort(domlist):
+    newdomlist = list()
+    for y in sorted([x.split('.')[::-1] for x in domlist]):
+        newdomlist.append('.'.join(y[::-1]))
+
+    return newdomlist
+
 
 # Check if file exists and return age if so
 def file_exist(file):
@@ -1015,10 +1057,10 @@ def save_cache():
     log_info(tag + 'Save-ing cache')
     try:
         with open(cachefile, 'w') as f:
-	    for line in sorted(blackcache.keys()):
+	    for line in dom_sort(blackcache.keys()):
                 f.write('BLACK:' + line)
                 f.write('\n')
-            for line in sorted(whitecache.keys()):
+            for line in dom_sort(whitecache.keys()):
                 f.write('WHITE:' + line)
                 f.write('\n')
 
@@ -1136,11 +1178,12 @@ def operate(id, event, qstate, qdata):
                         if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
                         # Pre-set some variables for cname collapsing (only for domains not black/whitelisted
-                        firstname = False
-                        firstttl = False
-                        firsttype = False
-                        lasttype = False
-                        lastname = dict()
+                        if collapse:
+                            firstname = False
+                            firstttl = False
+                            firsttype = False
+                            lasttype = False
+                            lastname = dict()
 
                         if not in_cache('white', qname):
                             if not in_cache('black', qname):
@@ -1150,7 +1193,7 @@ def operate(id, event, qstate, qdata):
                                     type = rk.type_str.upper()
                                     dname = rk.dname_str.rstrip('.').lower()
 
-                                    if i == 0 and type == 'CNAME':
+                                    if collapse and i == 0 and type == 'CNAME':
                                         firstname = dname
                                         firstttl = rep.ttl
                                         firsttype = type
@@ -1192,7 +1235,7 @@ def operate(id, event, qstate, qdata):
     
                                                         # If we have a name, process it
                                                         if name:
-                                                            if type in ('A', 'AAAA'):
+                                                            if collapse and type in ('A', 'AAAA'):
                                                                 lasttype = type
                                                                 lastname[name] = type
 
@@ -1276,13 +1319,12 @@ def operate(id, event, qstate, qdata):
                             rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
                             for lname in lastname.keys():
 				if lastname[lname] == 'A':
-                                    log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
+                                    if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
                                     rmsg.answer.append('%s %d IN A %s' % (firstname, firstttl, lname))
                                 #elif lastname[lname] == 'AAAA':
                                 elif not blockv6 and lastname[lname] == 'AAAA':
                                     # !!!! Add IPv6/AAAA support !!!!
-                                    print 'NOT COLLAPSE AAAA', firstname, lname
-                                    log_info (tag + 'COLLAPSE CNAME SKIPPED for \"' + firstname + '\" due to AAAA record')
+                                    log_err(tag + 'COLLAPSE CNAME SKIPPED for \"' + firstname + '\" due to AAAA record')
 
                             rmsg.set_return_msg(qstate)
                             if not rmsg.set_return_msg(qstate):
