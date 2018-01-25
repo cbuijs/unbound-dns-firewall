@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.85-20180125 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.86-20180125 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -220,6 +220,13 @@ def in_list(name, bw, type, rrtype='ALL'):
 
             else:
                 # Check against domains
+                if (bw == 'black') and tldlist:
+                    tld = name.split('.')[-1:][0]
+                    if not tld in tldlist:
+                        if (debug >= 2): log_info(tag + 'HIT on non-existant TLD \"' + tld + '\" for \"' + name + '\"')
+                        add_to_cache(bw, name)
+                        return True
+
                 testname = name
                 while True:
                     if (bw == 'black'):
@@ -645,10 +652,11 @@ def read_lists(id, name, regexlist, iplist, domainlist):
 
                                     entry = entry.strip('.').lower()
                                     if entry:
-                                        tld = entry.split('.')[-1:][0]
-                                        if not tld in tldlist:
-                                            log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
-                                            entry = False
+                                        if tldlist:
+                                            tld = entry.split('.')[-1:][0]
+                                            if not tld in tldlist:
+                                                log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
+                                                entry = False
                                                 
                                         if entry:
                                             domainlist[entry] = str(id)
