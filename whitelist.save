@@ -1952,7 +1952,6 @@ mapcam.info
 mediserv.info
 sbc.io
 suspect-networks.io
-speedport.ip
 ib.bank-maskan.ir
 ebanking.bankmellat.ir
 bmi.ir
@@ -2009,7 +2008,6 @@ byblosbank.com.lb
 creditbank.com.lb
 fnb.com.lb
 llb.li
-local
 ebankas.danskebank.lt
 ibank.lt
 margevicius.lt
@@ -2087,6 +2085,7 @@ bankofamerica.tt.omtrdc.net
 opera-proxy.net
 root-servers.net
 i.taatta.net
+taleo.net
 wget-mirrors.uceprotect.net
 unicreditbanking.net
 whatsapp.net
@@ -3010,4 +3009,3 @@ hosts.ubuntu101.co.za
 213.135.106.194/32
 213.230.210.230/32
 ### WHITELIST EOF ###
-taleo.net
