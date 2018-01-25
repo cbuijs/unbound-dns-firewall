@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.86-20180125 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.9-20180125 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -476,8 +476,8 @@ def load_lists(force, savelists):
         except IOError:
             log_err(tag + 'Unable to read from file \"' + tldfile + '\"')
 
-    if tldlist and intercept_host:
-        tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
+    #if tldlist and intercept_host:
+    #    tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
 
     readblack = True
     readwhite = True
@@ -1236,7 +1236,7 @@ def operate(id, event, qstate, qdata):
                         qtype = qstate.qinfo.qtype_str.upper()
                         if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
-                        # Pre-set some variables for cname collapsing (only for domains not black/whitelisted
+                        # Pre-set some variables for cname collapsing
                         if collapse:
                             firstname = False
                             firstttl = False
@@ -1244,104 +1244,93 @@ def operate(id, event, qstate, qdata):
                             lasttype = False
                             lastname = dict()
 
-                        if not in_cache('white', qname):
-                            if not in_cache('black', qname):
-                                # Loop through RRSets
-                                for i in range(0,rep.an_numrrsets):
-                                    rk = rep.rrsets[i].rk
-                                    type = rk.type_str.upper()
-                                    dname = rk.dname_str.rstrip('.').lower()
+                        # Loop through RRSets
+                        for i in range(0,rep.an_numrrsets):
+                            rk = rep.rrsets[i].rk
+                            type = rk.type_str.upper()
+                            dname = rk.dname_str.rstrip('.').lower()
 
-                                    if collapse and i == 0 and type == 'CNAME':
-                                        firstname = dname
-                                        firstttl = rep.ttl
-                                        firsttype = type
+                            if collapse and i == 0 and type == 'CNAME':
+                                firstname = dname
+                                firstttl = rep.ttl
+                                firsttype = type
 
-                                    # Start checking if black/whitelisted
-                                    if dname:
-                                        if not in_list(dname, 'white', 'RESPONSE', type):
-                                            if not in_list(dname, 'black', 'RESPONSE', type):
-        
-                                                # Not listed yet, lets get data
-                                                data = rep.rrsets[i].entry.data
+                            # Start checking if black/whitelisted
+                            if dname:
+                                if (collapse and firstname) or not (in_list(dname, 'white', 'RESPONSE', type)):
+                                    if not in_list(dname, 'black', 'RESPONSE', type):
 
-                                                # Loop through data records
-                                                for j in range(0,data.count):
+                                        # Not listed yet, lets get data
+                                        data = rep.rrsets[i].entry.data
 
-                                                    # get answer section
-                                                    answer = data.rr_data[j]
+                                        # Loop through data records
+                                        for j in range(0,data.count):
 
-                                                    # Check if supported ype to record-type
-                                                    if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
-                                                        # Fetch Address or Name based on record-Type
-                                                        if type == 'A':
-                                                            name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
-                                                        elif type == 'AAAA':
-                                                            name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
-                                                        elif type in ('CNAME', 'NS'):
-                                                            name = decode_data(answer,0)
-                                                        elif type == 'MX':
-                                                            name = decode_data(answer,1)
-                                                        elif type == 'PTR':
-                                                            name = decode_data(answer,0)
-                                                        elif type == 'SOA':
-                                                            name = decode_data(answer,0).split(' ')[0][0].strip('.')
-                                                        elif type == 'SRV':
-                                                            name = decode_data(answer,5)
-                                                        else:
-                                                            # Not supported
-                                                            name = False
-    
-                                                        # If we have a name, process it
-                                                        if name:
-                                                            if collapse and type in ('A', 'AAAA'):
-                                                                lasttype = type
-                                                                lastname[name] = type
+                                            # get answer section
+                                            answer = data.rr_data[j]
 
-                                                            if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
+                                            # Check if supported ype to record-type
+                                            if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
+                                                # Fetch Address or Name based on record-Type
+                                                if type == 'A':
+                                                    name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
+                                                elif type == 'AAAA':
+                                                    name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
+                                                elif type in ('CNAME', 'NS'):
+                                                    name = decode_data(answer,0)
+                                                elif type == 'MX':
+                                                    name = decode_data(answer,1)
+                                                elif type == 'PTR':
+                                                    name = decode_data(answer,0)
+                                                elif type == 'SOA':
+                                                    name = decode_data(answer,0).split(' ')[0][0].strip('.')
+                                                elif type == 'SRV':
+                                                    name = decode_data(answer,5)
+                                                else:
+                                                    # Not supported
+                                                    name = False
 
-                                                            # Not Whitelisted?
-                                                            if not in_list(name, 'white', 'RESPONSE', type):
-                                                                # Blacklisted?
-                                                                if in_list(name, 'black', 'RESPONSE', type):
-                                                                    blockit = True
-                                                                    break
-    
-                                                            else:
-                                                                # Already whitelisted, lets abort processing and passthru
-                                                                blockit = False
-                                                                break
+                                                # If we have a name, process it
+                                                if name:
+                                                    if collapse and type in ('A', 'AAAA'):
+                                                        lasttype = type
+                                                        lastname[name] = type
+
+                                                    if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
+
+                                                    # Not Whitelisted?
+                                                    if not in_list(name, 'white', 'RESPONSE', type):
+                                                        # Blacklisted?
+                                                        if in_list(name, 'black', 'RESPONSE', type):
+                                                            blockit = True
+                                                            break
+
                                                     else:
-                                                        # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
-                                                        if (debug >=2): log_info(tag + 'Ignoring RR-type ' + type)
+                                                        # Already whitelisted, lets abort processing and passthru
                                                         blockit = False
-
+                                                        break
                                             else:
-                                                # Response Blacklisted
-                                                blockit = True
-                                                break
-
-                                        else:
-                                            # Response Whitelisted
-                                            blockit = False
-                                            break
+                                                # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
+                                                if (debug >=2): log_info(tag + 'Ignoring RR-type ' + type)
+                                                blockit = False
 
                                     else:
-                                        # Nothing to process
-                                        blockit = False
-
-                                    if blockit:
-                                        # if we found something to block, abort loop and start blocking
+                                        # Qname Response Blacklisted
+                                        blockit = True
                                         break
 
+                                else:
+                                    # Qname Response Whitelisted
+                                    blockit = False
+                                    break
+
                             else:
-                                # Query Blacklisted
-                                blockit = True
+                                # Nothing to process
+                                blockit = False
 
-                        else:
-                            # Query Whitelisted
-                            blockit = False
-
+                            if blockit:
+                                # if we found something to block, abort loop and start blocking
+                                break
 
                         # Block it and generate response accordingly, otther wise DNS resolution continues as normal
                         if blockit:
