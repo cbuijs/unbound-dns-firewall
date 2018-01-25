@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.8-20180124 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.85-20180125 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -119,6 +119,10 @@ savelists = True
 blacksave = '/etc/unbound/blacklist.save'
 whitesave = '/etc/unbound/whitelist.save'
 
+# TLD file
+tldfile = '/etc/unbound/tlds.list'
+tldlist = dict()
+
 # Forcing blacklist, use with caution
 disablewhitelist = False
 
@@ -151,7 +155,7 @@ commandtld = '.command'
 checkresponse = True
 
 # Maintenance after x queries
-maintenance = 10000
+maintenance = 50000
 
 # Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
@@ -180,7 +184,7 @@ isregex = regex.compile('^/.*/$')
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
-exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|google\.com|googlevideo\.com)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -426,6 +430,13 @@ def maintenance_lists(count):
 def load_lists(force, savelists):
     tag = 'DNS-FIREWALL LISTS: '
 
+    global blacklist
+    global whitelist
+    global rblacklist
+    global rwhitelist
+    global cblacklist
+    global cwhitelist
+    
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
@@ -434,6 +445,33 @@ def load_lists(force, savelists):
     clear_lists()
 
     # Read Lists
+    if tldfile:
+        age = file_exist(tldfile)
+	if not age or age > maxlistage:
+            log_info(tag + 'Downloading IANA TLD list')
+            r = requests.get('https://data.iana.org/TLD/tlds-alpha-by-domain.txt', headers=headers, allow_redirects=True)
+            if r.status_code == 200:
+                try:
+                    with open(tldfile, 'w') as f:
+                        f.write(r.text.encode('ascii', 'ignore').replace('\r', ''))
+
+                except IOError:
+                    log_err(tag + 'Unable to write to file \"' + tldfile + '\"')
+
+        log_info(tag + 'Fetching TLD list \"' + tldfile + '\"')
+        try:
+            with open(tldfile, 'r') as f:
+                for line in f:
+                    entry = line.strip().lower()
+                    if not (entry.startswith("#")) and not (len(entry) == 0):
+                        tldlist[entry] = True
+
+        except IOError:
+            log_err(tag + 'Unable to read from file \"' + tldfile + '\"')
+
+    if tldlist and intercept_host:
+        tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
+
     readblack = True
     readwhite = True
     if savelists and not force:
@@ -499,7 +537,7 @@ def load_lists(force, savelists):
                                                             for line in f:
                                                                 matchentry = regex.match(fregex, line)
                                                                 if matchentry:
-                                                                    entry = matchentry.group('entry')
+                                                                    entry = matchentry.group('entry').lower()
                                                                     if entry and not entry in seen:
                                                                         g.write(entry)
                                                                         g.write('\n')
@@ -607,8 +645,14 @@ def read_lists(id, name, regexlist, iplist, domainlist):
 
                                     entry = entry.strip('.').lower()
                                     if entry:
-                                        domainlist[entry] = str(id)
-                                        domaincount += 1
+                                        tld = entry.split('.')[-1:][0]
+                                        if not tld in tldlist:
+                                            log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
+                                            entry = False
+                                                
+                                        if entry:
+                                            domainlist[entry] = str(id)
+                                            domaincount += 1
 
                             else:
                                 log_err(tag + name + ': Invalid line \"' + entry + '\"')
@@ -925,6 +969,13 @@ def file_exist(file):
 # Initialization
 def init(id, cfg):
     tag = 'DNS-FIREWALL INIT: '
+
+    global blacklist
+    global whitelist
+    global rblacklist
+    global rwhitelist
+    global cblacklist
+    global cwhitelist
 
     log_info(tag + 'Initializing')
 
