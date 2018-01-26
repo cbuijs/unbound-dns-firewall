@@ -719,7 +719,7 @@ def generate_response(qstate, rname, rtype, rrtype):
             qname = intercept_host
         elif rtype == 'TXT':
             rmsg = DNSMessage(rname, rrtype, RR_CLASS_IN, PKT_QR | PKT_RA )
-            redirect = '\"BLOCKED BY DNS-FIREWALL\"'
+            redirect = '\"Domain \'' + rname + '\' blocked by DNS-Firewall\"'
             rmsg.answer.append('%s %d IN %s %s' % (rname, cachettl, rtype, redirect))
         else:
             rmsg = DNSMessage(rname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
