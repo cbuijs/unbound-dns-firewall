@@ -1,5 +1,5 @@
 ### WHITELIST REGEXES ###
-/^(.*\.)*(clients[0-9]+|encrypted|imap|mail|payments|play|pop|smtp|wallet|www)\.google\.com$/
+/^(.*\.)*((my)*account|clients[0-9]+|encrypted|imap|mail|payments|play|pop|smtp|wallet|www)\.google\.com$/
 /^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail)\.l\.google\.com/
 /^(imap|pop|smtp)\.gmail\.com$/
 /^.*-pa.googleapis\.com$/
@@ -348,6 +348,7 @@ malwaredomains.com
 maritimebank.com
 masterpass.com
 ibank.mbbru.com
+avts.mcafee.com
 mob2api.mdc53.com
 e-plat.mdmbank.com
 meabank.com
@@ -2009,6 +2010,7 @@ mapcam.info
 mediserv.info
 sbc.io
 suspect-networks.io
+speedport.ip
 ib.bank-maskan.ir
 ebanking.bankmellat.ir
 bmi.ir
@@ -2065,6 +2067,7 @@ byblosbank.com.lb
 creditbank.com.lb
 fnb.com.lb
 llb.li
+local
 ebankas.danskebank.lt
 ibank.lt
 margevicius.lt
