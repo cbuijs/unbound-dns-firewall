@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python -OO -vv
 # -*- coding: utf-8 -*-
 
 '''
 =========================================================================================
- dns-firewall.py: v5.9-20180125 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.95-20180206 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -108,8 +108,8 @@ rblacklist = dict() # Regex blacklist (maybe replace with set()?)
 rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 
 # Cache
-cachesize = 2500
-cachettl = 120
+cachesize = 5000
+cachettl = 1800
 blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
 cachefile = '/etc/unbound/cache.file'
@@ -120,7 +120,8 @@ blacksave = '/etc/unbound/blacklist.save'
 whitesave = '/etc/unbound/whitelist.save'
 
 # TLD file
-tldfile = '/etc/unbound/tlds.list'
+tldfile = False
+#tldfile = '/etc/unbound/tlds.list'
 tldlist = dict()
 
 # Forcing blacklist, use with caution
@@ -155,7 +156,7 @@ commandtld = '.command'
 checkresponse = True
 
 # Maintenance after x queries
-maintenance = 50000
+maintenance = 100000
 
 # Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
@@ -165,6 +166,12 @@ blockv6 = True
 
 # CNAME Collapsing
 collapse = True
+
+# Allow RFC 2606 names
+rfc2606 = False
+
+# Allow common intranet names
+intranet = False
 
 # Default maximum age of downloaded lists, can be overruled in lists file
 maxlistage = 86400 # In seconds
@@ -219,7 +226,7 @@ def in_list(name, bw, type, rrtype='ALL'):
                     return False
 
             else:
-                # Check against domains
+                # Check against tlds
                 if (bw == 'black') and tldlist:
                     tld = name.split('.')[-1:][0]
                     if not tld in tldlist:
@@ -227,6 +234,7 @@ def in_list(name, bw, type, rrtype='ALL'):
                         add_to_cache(bw, name)
                         return True
 
+                # Check against domains
                 testname = name
                 while True:
                     if (bw == 'black'):
@@ -476,8 +484,24 @@ def load_lists(force, savelists):
         except IOError:
             log_err(tag + 'Unable to read from file \"' + tldfile + '\"')
 
-    #if tldlist and intercept_host:
-    #    tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
+        if rfc2606:
+            tldlist['example'] = True
+            tldlist['invalid'] = True
+            tldlist['localhost'] = True
+            tldlist['test'] = True
+
+        if intranet:
+            tldlist['corp'] = True
+            tldlist['home'] = True
+            tldlist['host'] = True
+            tldlist['lan'] = True
+            tldlist['local'] = True
+            tldlist['localdomain'] = True
+            tldlist['router'] = True
+            tldlist['workgroup'] = True
+
+    #    if intercept_host:
+    #        tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
 
     readblack = True
     readwhite = True
@@ -485,13 +509,13 @@ def load_lists(force, savelists):
         age = file_exist(whitesave)
         if age and age < maxlistage and not disablewhitelist:
             log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist)
+            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist, True)
             readwhite = False
 
         age = file_exist(blacksave)
         if age and age < maxlistage:
             log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist)
+            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist, True)
             readblack = False
 
     try:
@@ -505,6 +529,7 @@ def load_lists(force, savelists):
                         bw = element[1].lower()
                         if (bw == 'black' and readblack) or (bw == 'white' and readwhite):
                             file = element[2]
+                            force = False
                             if (file.find('http://') == 0) or (file.find('https://') == 0):
                                 url = file
                                 if len(element) > 3:
@@ -564,12 +589,14 @@ def load_lists(force, savelists):
 
                                 else:
                                     log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
+                            else:
+                                force = True
 
                             if bw == 'black':
-                                read_lists(id, file, rblacklist, cblacklist, blacklist)
+                                read_lists(id, file, rblacklist, cblacklist, blacklist, force)
                             else:
                                 if not disablewhitelist:
-                                    read_lists(id, file, rwhitelist, cwhitelist, whitelist)
+                                    read_lists(id, file, rwhitelist, cwhitelist, whitelist, force)
                         else:
                             log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
                     else:
@@ -585,9 +612,11 @@ def load_lists(force, savelists):
     if readblack:
         optimize_domlists('white', 'WhiteDoms')
         unreg_lists('white', 'WhiteDoms')
+        aggregate_ip(cwhitelist, 'WhiteIPs')
     if readwhite:
         optimize_domlists('black', 'BlackDoms')
         unreg_lists('black', 'BlackDoms')
+        aggregate_ip(cblacklist, 'BlackIPs')
 
     if readblack or readwhite:
         # Remove whitelisted entries from blaclist
@@ -603,7 +632,7 @@ def load_lists(force, savelists):
 
 
 # Read file/list
-def read_lists(id, name, regexlist, iplist, domainlist):
+def read_lists(id, name, regexlist, iplist, domainlist, force):
     tag = 'DNS-FIREWALL LISTS: '
 
     if (len(name) > 0):
@@ -638,8 +667,10 @@ def read_lists(id, name, regexlist, iplist, domainlist):
                                             entry = entry + '/128' # Single IPv6 Address
 
                                     if entry:
-                                        iplist[entry.lower()] = '\"' + entry.lower() + '\" (' + str(id) + ')'
+                                        ip = entry.lower()
+                                        iplist[ip] = '\"' + ip + '\" (' + str(id) + ')'
                                         ipcount += 1
+
 
                             elif (isdomain.match(entry)):
                                     # It is a domain
@@ -652,10 +683,10 @@ def read_lists(id, name, regexlist, iplist, domainlist):
 
                                     entry = entry.strip('.').lower()
                                     if entry:
-                                        if tldlist:
+                                        if tldlist and not force:
                                             tld = entry.split('.')[-1:][0]
                                             if not tld in tldlist:
-                                                log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
+                                                if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
                                                 entry = False
                                                 
                                         if entry:
@@ -707,7 +738,7 @@ def generate_response(qstate, rname, rtype, rrtype):
                 fname = '0 ' + intercept_host
             elif rtype == 'SOA':
                 serial = datetime.datetime.now().strftime("%Y%m%d%H")
-                fname = intercept_host + ' hostmaster.' + intercept_host + ' ' + serial + ' 86400 7200 3600000 120'
+                fname = intercept_host + ' hostmaster.' + intercept_host + ' ' + serial + ' 86400 7200 3600000 ' + str(cachettl)
             elif rtype == 'SRV':
                 fname = '0 0 80 ' + intercept_host
             else:
@@ -958,6 +989,30 @@ def dom_sort(domlist):
 
     return newdomlist
 
+# Aggregate IP list
+def aggregate_ip(iplist, listname):
+    tag = 'DNS-FIREWALL LISTS: '
+
+    log_info(tag + 'Aggregating \"' + listname + '\"')
+
+    newlist = iplist
+    for ip in iplist.keys():
+        bitmask = ip.split('/')[1]
+        if (bitmask != '32') and (bitmask != '128'):
+            try:
+                children = iplist.children(ip)
+                if children:
+                    for child in children:
+                        del newlist[child]
+                        if (debug >= 2): log_info(tag + 'Removed ' + child + ', already covered by ' + ip)
+            except Exception:
+                pass
+
+
+    iplist = newlist
+
+    return True
+
 
 # Check if file exists and return age if so
 def file_exist(file):
@@ -1113,7 +1168,7 @@ def execute_command(qstate):
 def save_cache():
     tag = 'DNS-FIREWALL CACHE: '
 
-    log_info(tag + 'Save-ing cache')
+    log_info(tag + 'Saving cache')
     try:
         with open(cachefile, 'w') as f:
 	    for line in dom_sort(blackcache.keys()):
@@ -1241,7 +1296,6 @@ def operate(id, event, qstate, qdata):
                             firstname = False
                             firstttl = False
                             firsttype = False
-                            lasttype = False
                             lastname = dict()
 
                         # Loop through RRSets
@@ -1257,7 +1311,7 @@ def operate(id, event, qstate, qdata):
 
                             # Start checking if black/whitelisted
                             if dname:
-                                if (collapse and firstname) or not (in_list(dname, 'white', 'RESPONSE', type)):
+                                if not in_list(dname, 'white', 'RESPONSE', type):
                                     if not in_list(dname, 'black', 'RESPONSE', type):
 
                                         # Not listed yet, lets get data
@@ -1292,11 +1346,10 @@ def operate(id, event, qstate, qdata):
 
                                                 # If we have a name, process it
                                                 if name:
-                                                    if collapse and type in ('A', 'AAAA'):
-                                                        lasttype = type
+                                                    if collapse and firstname and type in ('A', 'AAAA'):
                                                         lastname[name] = type
 
-                                                    if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ')')
+                                                    if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ') (TTL:' + str(rep.ttl) + ')')
 
                                                     # Not Whitelisted?
                                                     if not in_list(name, 'white', 'RESPONSE', type):
@@ -1305,28 +1358,31 @@ def operate(id, event, qstate, qdata):
                                                             blockit = True
                                                             break
 
-                                                    else:
+                                                    #else:
                                                         # Already whitelisted, lets abort processing and passthru
-                                                        blockit = False
-                                                        break
+                                                    #    blockit = False
+                                                    #    break
+
                                             else:
                                                 # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
                                                 if (debug >=2): log_info(tag + 'Ignoring RR-type ' + type)
                                                 blockit = False
+                                                break
 
                                     else:
-                                        # Qname Response Blacklisted
+                                        # dname Response Blacklisted
                                         blockit = True
                                         break
 
                                 else:
-                                    # Qname Response Whitelisted
+                                    # dname Response Whitelisted
                                     blockit = False
                                     break
 
                             else:
                                 # Nothing to process
                                 blockit = False
+                                break
 
                             if blockit:
                                 # if we found something to block, abort loop and start blocking
@@ -1363,7 +1419,7 @@ def operate(id, event, qstate, qdata):
                                 if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
                                 qstate.return_rcode = RCODE_REFUSED
 
-                        elif collapse and firstname and firsttype == 'CNAME' and (len(lastname) > 0):
+                        elif collapse and lastname:
                             rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
                             for lname in lastname.keys():
 				if lastname[lname] == 'A':
@@ -1386,6 +1442,8 @@ def operate(id, event, qstate, qdata):
                             storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 0)
 
                             qstate.return_msg.rep.security = 2
+
+                            qstate.return_rcode = RCODE_NOERROR
 
                         if (debug >= 2): log_info(tag + 'Finished on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
