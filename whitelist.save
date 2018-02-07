@@ -40,6 +40,7 @@ bpostbank.be
 ebanking.ing.be
 keytradebank.be
 wallet.best
+bov.wallet.best
 online.bulbank.bg
 sgeb.bg
 mabanque.bnpparibas
@@ -57,6 +58,7 @@ ibank.belapb.by
 ibank.belinvestbank.by
 i-bank.bgpb.by
 bps-sberbank.by
+i.bps-sberbank.by
 bsb.by
 online.btabank.by
 e-bgpb.by
@@ -124,6 +126,8 @@ acledabank-internetbanking.com
 secure.acquiropay.com
 acs-education.com
 adguard.com
+addons-api.adguard.com
+api.adguard.com
 admuncher.com
 mein.advanzia.com
 wallet.advcash.com
@@ -133,6 +137,7 @@ online.agroprombank.com
 airbus-group-bank.com
 akbank.com
 alipay.com
+itscenter.alipay.com
 altbank.com
 amazon.com
 s3.amazonaws.com
@@ -233,9 +238,11 @@ webtrack.dhlglobalmail.com
 directnet.com
 cbuhome.dnsalias.com
 dropbox.com
+api-notify.dropbox.com
 dropboxapi.com
 dropboxstatic.com
 dropboxusercontent.com
+dl.dropboxusercontent.com
 dslreports.com
 dvbbank.com
 dyn.com
@@ -249,6 +256,7 @@ secure.ecopayz.com
 ellisbank.com
 online.energbank.com
 enpara.com
+internetsubesi.finansbank.enpara.com
 merchantsecurity.enstage.com
 eurobank-ua.com
 bank.eximb.com
@@ -281,6 +289,7 @@ go.com
 android.clients.google.com
 googlecode.com
 googleusercontent.com
+lh3.googleusercontent.com
 3dsecure.gpwebpay.com
 grabtaxi.com
 greensill-bank.com
@@ -553,6 +562,7 @@ wunderlist.com
 wyzecam.com
 xda-cdn.com
 xda-developers.com
+xudongz.com
 passport.yandex.com
 s.youtube.com
 youtube-nocookie.com
@@ -560,6 +570,8 @@ zaim.com
 zenstudios.com
 ebanking.eurobank.com.cy
 csas.cz
+3dsecure.csas.cz
+bezpecnost.csas.cz
 fio.cz
 internetbanka.cz
 online.mbank.cz
@@ -691,6 +703,7 @@ hanseaticbank.de
 harzer-volksbank.de
 harzsparkasse.de
 haspa.de
+banking.haspa.de
 hauck-aufhaeuser.de
 hausbank.de
 hdh-voba.de
@@ -1523,6 +1536,7 @@ sskbo.de
 sskborken.de
 sskduesseldorf.de
 sskm.de
+homebanking.sskm.de
 sskpw.de
 stadt-sparkasse-haan.de
 stadtsparkasse-barsinghausen.de
@@ -1912,6 +1926,7 @@ wvb.de
 ww-ag.de
 xn--httenberger-bank-jzb.de
 danskebank.dk
+ebanking2.danskebank.dk
 jyskebank.dk
 mitnykredit.dk
 nordeanetbank.dk
@@ -1982,6 +1997,7 @@ extra.unicreditbank.hu
 ibank.bni.co.id
 ib.bri.co.id
 aib.ie
+onlinebanking.aib.ie
 hb.aibank.co.il
 bankhapoalim.co.il
 hb2.bankleumi.co.il
@@ -2162,6 +2178,7 @@ bankofscotland.nl
 crediteurope.nl
 garantibank.nl
 ing.nl
+mijn.ing.nl
 internet.nl
 lloydsbank.nl
 ads.memo2.nl
@@ -2179,6 +2196,7 @@ advertising.scoop.co.nz
 1stnorcalcu.org
 easylist-downloads.adblockplus.org
 adtidy.org
+chrome.adtidy.org
 ampproject.org
 antipubfirefox.org
 logging.apache.org
@@ -2193,6 +2211,7 @@ ibank2.intercredit.org
 isc.org
 lede-project.org
 lineageos.org
+review.lineageos.org
 master-capital.org
 mozilla.org
 winhelp2002.mvps.org
@@ -2218,6 +2237,9 @@ metrics.torproject.org
 yoyo.org
 group.pictet
 aliorbank.pl
+bn.aliorbank.pl
+login.aliorbank.pl
+system.aliorbank.pl
 bph.pl
 login.bsczarnkow.pl
 cdm24.pl
@@ -2229,6 +2251,7 @@ deutschebank.pl
 secure.getinbank.pl
 secure.ideabank.pl
 ingbank.pl
+login.ingbank.pl
 ipko.pl
 ipkobiznes.pl
 online.mbank.pl
@@ -2236,6 +2259,7 @@ ekonto.paluckibs.pl
 pekao24.pl
 sgb24.pl
 t-mobilebankowe.pl
+online.t-mobilebankowe.pl
 caixaebankingonline.cgd.pt
 deutsche-bank.pt
 login.24banking.ro
@@ -2274,6 +2298,7 @@ atb-online.ru
 atbbank.ru
 secure.authority.ru
 autopays.ru
+pibank.autopays.ru
 avangard.ru
 avbank.ru
 ib.aversbank.ru
@@ -2400,6 +2425,7 @@ my.europlanbank.ru
 online.exi-bank.ru
 expr.ru
 express-bank.ru
+secure-payments.express-bank.ru
 ezaimo.ru
 faktura.ru
 ibank.fbbank.ru
@@ -2503,6 +2529,7 @@ kurskprombank.ru
 kuzbank.ru
 kuzbasshimbank.ru
 kvartplata.ru
+pay.kvartplata.ru
 kykyryza.ru
 ibank2.lanta.ru
 my.letobank.ru
@@ -2672,6 +2699,7 @@ raiffeisen.ru
 otkritie.rapida.ru
 wallet.rapida.ru
 rbkmoney.ru
+sko.rbkmoney.ru
 access.rbsbank.ru
 ib.rencredit.ru
 ibank.rentabank.ru
@@ -2794,6 +2822,8 @@ uniastrum.ru
 enter.unicredit.ru
 unifinbank.ru
 unistream.ru
+card2cash.unistream.ru
+iw.unistream.ru
 ic.united.ru
 wpay.uniteller.ru
 unitpay.ru
@@ -2816,6 +2846,8 @@ vivuso.ru
 api-kino.vl.ru
 ibank.vladprombank.ru
 vostbank.ru
+online.vostbank.ru
+pay.vostbank.ru
 vp.ru
 client.vpb.ru
 gate.vseplatezhi.ru
@@ -2868,6 +2900,7 @@ otf.seb.se
 skandia.se
 skatteverket.se
 swedbank.se
+internetbank.swedbank.se
 volvofinans.se
 ipb.citibank.com.sg
 whisper.sh
@@ -2883,6 +2916,7 @@ homebank.tj
 ibank.tj
 easylist.to
 abank.com.tr
+esube.abank.com.tr
 3dsecure.akbank.com.tr
 online.aktifbank.com.tr
 esube.albarakaturk.com.tr
@@ -2935,6 +2969,7 @@ gov.tw
 p2p.alfabank.ua
 pay.alfabank.ua
 asviobank.ua
+online.asviobank.ua
 aval.ua
 bank34.ua
 banker.ua
@@ -2942,6 +2977,7 @@ bistrozaim.ua
 ibank.btabank.ua
 a24.a-bank.com.ua
 agrocombank.com.ua
+abl.agrocombank.com.ua
 my.alfabank.com.ua
 apeksbank.com.ua
 artembank.com.ua
@@ -2968,6 +3004,7 @@ oplata.lifecell.com.ua
 metabankonline.com.ua
 ibank.mistobank.com.ua
 otpbank.com.ua
+ibank.otpbank.com.ua
 otpsmart.com.ua
 p2y.com.ua
 biznes.platinumbank.com.ua
@@ -2976,12 +3013,14 @@ portmone.com.ua
 procreditbank.com.ua
 online.ptclick.com.ua
 radabank.com.ua
+ibank.radabank.com.ua
 ibank.sbrf.com.ua
 ibank.tascombank.com.ua
 thepay.com.ua
 online.unicombank.com.ua
 unison24.com.ua
 universalbank.com.ua
+ebanking.universalbank.com.ua
 cb.vtb.com.ua
 xcitybank.com.ua
 webdav.yandex.com.ua
@@ -2991,6 +3030,8 @@ credit365.ua
 cb.creditwest.ua
 creditdnepr.dp.ua
 dvbank.ua
+cardtocard.dvbank.ua
+ifobs.dvbank.ua
 easypay.ua
 pay.fidobank.ua
 fidomarket.ua
@@ -3003,6 +3044,7 @@ train.ideabank.ua
 ideaonline.ua
 express-credit.in.ua
 industrialbank.ua
+itiny.industrialbank.ua
 ipay.ua
 cfront.alfabank.kiev.ua
 clhs.kiev.ua
