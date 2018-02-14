@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.95-20180206 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v5.98-20180214 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -104,6 +104,10 @@ blacklist = dict() # Domains blacklist
 whitelist = dict() # Domains whitelist
 cblacklist = pytricia.PyTricia(128) # IP blacklist
 cwhitelist = pytricia.PyTricia(128) # IP whitelist
+cblacklist4 = pytricia.PyTricia(32) # IP blacklist
+cwhitelist4 = pytricia.PyTricia(32) # IP whitelist
+cblacklist6 = pytricia.PyTricia(128) # IP blacklist
+cwhitelist6 = pytricia.PyTricia(128) # IP whitelist
 rblacklist = dict() # Regex blacklist (maybe replace with set()?)
 rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 
@@ -120,8 +124,8 @@ blacksave = '/etc/unbound/blacklist.save'
 whitesave = '/etc/unbound/whitelist.save'
 
 # TLD file
-tldfile = False
-#tldfile = '/etc/unbound/tlds.list'
+#tldfile = False
+tldfile = '/etc/unbound/tlds.list'
 tldlist = dict()
 
 # Forcing blacklist, use with caution
@@ -174,7 +178,7 @@ rfc2606 = False
 intranet = False
 
 # Default maximum age of downloaded lists, can be overruled in lists file
-maxlistage = 86400 # In seconds
+maxlistage = 43200 # In seconds
 
 # Debugging, Levels: 0=Minimal, 1=Default, show blocking, 2=Show all info/processing, 3=Flat out all
 # The higher levels include the lower level informations
@@ -329,11 +333,19 @@ def add_to_cache(bw, name):
 # Check against IP lists (called from in_list)
 def check_ip(ip, bw):
     if (bw == 'black'):
-	if ip in cblacklist:
-            return cblacklist[ip] 
+        if ip.find(':') == -1:
+            if ip in cblacklist4:
+                return cblacklist4[ip]
+        else:
+            if ip in cblacklist6:
+                return cblacklist6[ip]
     else:
-        if ip in cwhitelist:
-            return cwhitelist[ip]
+        if ip.find(':') == -1:
+            if ip in cwhitelist4:
+                return cwhitelist4[ip]
+        else:
+            if ip in cwhitelist6:
+                return cwhitelist6[ip]
 
     return False
 
@@ -379,6 +391,10 @@ def clear_lists():
     global rwhitelist
     global cblacklist
     global cwhitelist
+    global cblacklist4
+    global cwhitelist4
+    global cblacklist6
+    global cwhitelist6
 
     log_info(tag + 'Clearing Lists')
 
@@ -391,6 +407,9 @@ def clear_lists():
     blacklist.clear()
     for i in cblacklist.keys():
         cblacklist.delete(i)
+
+    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs')
+    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs')
 
     clear_cache()
 
@@ -451,6 +470,10 @@ def load_lists(force, savelists):
     global rwhitelist
     global cblacklist
     global cwhitelist
+    global cblacklist4
+    global cwhitelist4
+    global cblacklist6
+    global cwhitelist6
     
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = {
@@ -612,18 +635,30 @@ def load_lists(force, savelists):
     if readblack:
         optimize_domlists('white', 'WhiteDoms')
         unreg_lists('white', 'WhiteDoms')
-        aggregate_ip(cwhitelist, 'WhiteIPs')
+
     if readwhite:
         optimize_domlists('black', 'BlackDoms')
         unreg_lists('black', 'BlackDoms')
-        aggregate_ip(cblacklist, 'BlackIPs')
 
     if readblack or readwhite:
-        # Remove whitelisted entries from blaclist
+        # Remove whitelisted entries from blacklist
         uncomplicate_lists()
 
-        # Save processed list for distribution
-        write_out(whitesave, blacksave)
+    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs')
+    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs')
+
+    regexcount = str(len(rblacklist))
+    ipcount = str (len(cblacklist))
+    domaincount = str(len(blacklist))
+    log_info(tag + 'BlackList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs and ' + domaincount + ' DOMAINS')
+
+    regexcount = str(len(rwhitelist))
+    ipcount = str (len(cwhitelist))
+    domaincount = str(len(whitelist))
+    log_info(tag + 'WhiteList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs and ' + domaincount + ' DOMAINS')
+
+    # Save processed list for distribution
+    write_out(whitesave, blacksave)
 
     # Clean-up after ourselfs
     gc.collect()
@@ -781,6 +816,7 @@ def generate_response(qstate, rname, rtype, rrtype):
 
 # Domain aggregator, removes subdomains if parent exists
 def optimize_domlists(bw, listname):
+    return True
     tag = 'DNS-FIREWALL LISTS: '
 
     global blacklist
@@ -842,7 +878,7 @@ def uncomplicate_lists():
     global whitelist
     global rwhitelist
 
-    log_info(tag + 'Uncomplicating black/whitelists')
+    log_info(tag + 'Uncomplicating Domain black/whitelists')
 
     listw = dom_sort(whitelist.keys())
     listb = dom_sort(blacklist.keys())
@@ -886,6 +922,48 @@ def uncomplicate_lists():
     blacklist = new
 
     if (debug >= 2): log_info(tag + 'Number of blocklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
+
+    uncomplicate_ip_lists()
+
+    return True
+
+
+# uncomplicate IP lists
+def uncomplicate_ip_lists():
+    tag = 'DNS-FIREWALL LISTS: '
+
+    global cblacklist
+    global cwhitelist
+
+    log_info(tag + 'Uncomplicating IP black/whitelists')
+
+    listw = cwhitelist.keys()
+    listb = cblacklist.keys()
+
+    # Remove all 1-to-1/same whitelisted entries from blacklist
+    # !!! We need logging on this !!!
+    listb = dom_sort(list(set(listb).difference(listw)))
+
+    # loop through blacklist entries and find whitelisted entries to remove
+    for ip in listb:
+        if ip in cwhitelist:
+            if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + ip + '\" due to whitelisted \"' + cwhitelist[ip] + '\"')
+            listb.remove(found)
+
+    new = pytricia.PyTricia(128)
+
+    # Build new dictionary preserving id/category
+    for ip in listb:
+        new[ip] = cblacklist[ip]
+
+    before = len(cblacklist)
+    after = len(new)
+    count = after - before
+
+    cblacklist = new
+
+    if (debug >= 2): log_info(tag + 'Number of blocklisted IPs went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
+
     return True
 
 
@@ -907,21 +985,24 @@ def unreg_lists(bw, listname):
 
     log_info(tag + 'Unregging \"' + listname + '\"')
 
-    count = 0
+    before = len(dlist)
+
     for i in range(0,len(rlist)/3):
         checkregex = rlist[i,1]
         if (debug >= 3): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
 	for found in filter(checkregex.search, dlist):
-            count += 1
             name = dlist.pop(found, None)
             if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + name + '\", already matched by regex \"' + rlist[i,2] + '\"')
+
+    after = len(dlist)
+    count = after - before
 
     if (bw == 'black'):
         blacklist = dlist
     else:
         whitelist = dlist
 
-    if (debug >= 2): log_info(tag + 'Removed ' + str(count) + ' entries from \"' + listname + '\"')
+    if (debug >= 2): log_info(tag + 'Number of \"' + listname + '\" entries went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
     return True
 
 
@@ -989,6 +1070,7 @@ def dom_sort(domlist):
 
     return newdomlist
 
+
 # Aggregate IP list
 def aggregate_ip(iplist, listname):
     tag = 'DNS-FIREWALL LISTS: '
@@ -996,22 +1078,46 @@ def aggregate_ip(iplist, listname):
     log_info(tag + 'Aggregating \"' + listname + '\"')
 
     newlist = iplist
+    iplist4 = pytricia.PyTricia(32)
+    iplist6 = pytricia.PyTricia(128)
+
+    for ip in iplist.keys():
+        if ip.find(':') == -1:
+            iplist4[ip] = iplist[ip]
+        else:
+            iplist6[ip] = iplist[ip]
+
     for ip in iplist.keys():
         bitmask = ip.split('/')[1]
         if (bitmask != '32') and (bitmask != '128'):
             try:
-                children = iplist.children(ip)
+                if ip.find(':') == -1:
+                    children = iplist4.children(ip)
+                else:
+                    children = iplist6.children(ip)
+
                 if children:
                     for child in children:
                         del newlist[child]
-                        if (debug >= 2): log_info(tag + 'Removed ' + child + ', already covered by ' + ip)
+                        if child.find(':') == -1:
+                            del iplist4[child]
+                        else:
+                            del iplist6[child]
+
+                        if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip)
+
             except Exception:
                 pass
 
+    before = len(iplist)
+    after = len(newlist)
+    count = after - before
 
     iplist = newlist
 
-    return True
+    if (debug >= 2): log_info(tag + '\"' + listname + '\": Number of IP-Entries went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
+
+    return iplist4, iplist6
 
 
 # Check if file exists and return age if so
@@ -1039,6 +1145,10 @@ def init(id, cfg):
     global rwhitelist
     global cblacklist
     global cwhitelist
+    global cblacklist4
+    global cwhitelist4
+    global cblacklist6
+    global cwhitelist6
 
     log_info(tag + 'Initializing')
 
@@ -1422,13 +1532,8 @@ def operate(id, event, qstate, qdata):
                         elif collapse and lastname:
                             rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
                             for lname in lastname.keys():
-				if lastname[lname] == 'A':
-                                    if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
-                                    rmsg.answer.append('%s %d IN A %s' % (firstname, firstttl, lname))
-                                #elif lastname[lname] == 'AAAA':
-                                elif not blockv6 and lastname[lname] == 'AAAA':
-                                    # !!!! Add IPv6/AAAA support !!!!
-                                    log_err(tag + 'COLLAPSE CNAME SKIPPED for \"' + firstname + '\" due to AAAA record')
+                                if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
+                                rmsg.answer.append('%s %d IN %s %s' % (firstname, firstttl, lastname[lname], lname))
 
                             rmsg.set_return_msg(qstate)
                             if not rmsg.set_return_msg(qstate):
