@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v5.98-20180214 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.0-20180221 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -74,7 +74,7 @@ import requests
 # Use module regex instead of re, much faster less bugs
 import regex
 
-# Use module pytricia to find ip's in CIDR's fast
+# Use module pytricia to find ip's in CIDR's dicts fast
 import pytricia
 
 # Use expiringdictionary for cache
@@ -195,7 +195,7 @@ isregex = regex.compile('^/.*/$')
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
-exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -215,6 +215,7 @@ def in_list(name, bw, type, rrtype='ALL'):
     if blockv6 and ((rrtype == 'AAAA') or name.endswith('.ip6.arpa')):
         if (bw == 'black'):
              if (debug >= 2): log_info(tag + 'HIT on IPv6 for \"' + name + '\" (RR:' + rrtype + ')')
+             #add_to_cache(bw, name) # Do not cache, will block non-v6 queries if cached
              return True
 
     if not in_cache('white', name):
@@ -408,8 +409,8 @@ def clear_lists():
     for i in cblacklist.keys():
         cblacklist.delete(i)
 
-    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs')
-    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs')
+    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', True)
+    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', True)
 
     clear_cache()
 
@@ -480,7 +481,8 @@ def load_lists(force, savelists):
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
         }
 
-    clear_lists()
+    if (len(blacklist) > 0) or (len(whitelist) > 0):
+        clear_lists()
 
     # Read Lists
     if tldfile:
@@ -613,7 +615,7 @@ def load_lists(force, savelists):
                                 else:
                                     log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
                             else:
-                                force = True
+                                force = True # Always load when file on disk
 
                             if bw == 'black':
                                 read_lists(id, file, rblacklist, cblacklist, blacklist, force)
@@ -644,8 +646,8 @@ def load_lists(force, savelists):
         # Remove whitelisted entries from blacklist
         uncomplicate_lists()
 
-    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs')
-    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs')
+    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', readwhite)
+    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', readblack)
 
     regexcount = str(len(rblacklist))
     ipcount = str (len(cblacklist))
@@ -767,12 +769,11 @@ def generate_response(qstate, rname, rtype, rrtype):
 
     if (len(intercept_address) > 0 and len(intercept_host) > 0) and (rtype in ('A', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT', 'ANY')):
         qname = False
-
         if rtype in ('CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
             if rtype == 'MX':
                 fname = '0 ' + intercept_host
             elif rtype == 'SOA':
-                serial = datetime.datetime.now().strftime("%Y%m%d%H")
+                serial = datetime.datetime.now().strftime('%Y%m%d%H')
                 fname = intercept_host + ' hostmaster.' + intercept_host + ' ' + serial + ' 86400 7200 3600000 ' + str(cachettl)
             elif rtype == 'SRV':
                 fname = '0 0 80 ' + intercept_host
@@ -1072,7 +1073,7 @@ def dom_sort(domlist):
 
 
 # Aggregate IP list
-def aggregate_ip(iplist, listname):
+def aggregate_ip(iplist, listname, aggregate):
     tag = 'DNS-FIREWALL LISTS: '
 
     log_info(tag + 'Aggregating \"' + listname + '\"')
@@ -1087,27 +1088,30 @@ def aggregate_ip(iplist, listname):
         else:
             iplist6[ip] = iplist[ip]
 
-    for ip in iplist.keys():
-        bitmask = ip.split('/')[1]
-        if (bitmask != '32') and (bitmask != '128'):
-            try:
-                if ip.find(':') == -1:
-                    children = iplist4.children(ip)
-                else:
-                    children = iplist6.children(ip)
+    if aggregate:
+        for ip in iplist.keys():
+            bitmask = ip.split('/')[1]
+            if (bitmask != '32') and (bitmask != '128'):
+                try:
+                    if ip.find(':') == -1:
+                        children = iplist4.children(ip)
+                    else:
+                        children = iplist6.children(ip)
 
-                if children:
-                    for child in children:
-                        del newlist[child]
-                        if child.find(':') == -1:
-                            del iplist4[child]
-                        else:
-                            del iplist6[child]
+                    if children:
+                        for child in children:
+                            del newlist[child]
+                            if child.find(':') == -1:
+                                del iplist4[child]
+                            else:
+                                del iplist6[child]
 
-                        if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip)
+                            if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip)
 
-            except Exception:
-                pass
+                except Exception:
+                    pass
+    else:
+        log_info(tag + 'Skipping aggregating \"' + listname + '\", just splitting')
 
     before = len(iplist)
     after = len(newlist)
@@ -1532,7 +1536,7 @@ def operate(id, event, qstate, qdata):
                         elif collapse and lastname:
                             rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
                             for lname in lastname.keys():
-                                if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> A \"' + lname + '\"')
+                                if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> ' + lastname[lname] + ' \"' + lname + '\"')
                                 rmsg.answer.append('%s %d IN %s %s' % (firstname, firstttl, lastname[lname], lname))
 
                             rmsg.set_return_msg(qstate)
