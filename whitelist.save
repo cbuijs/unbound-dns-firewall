@@ -1,5 +1,5 @@
 ### WHITELIST REGEXES ###
-/^(.*\.)*((my)*account|apis|calendar|clients[0-9]+|consent|encrypted|imap|mail|notifications|ogs|payments|play|pop|santatracker|smtp|wallet|www)(\.l)*\.google\.com$/
+/^(.*\.)*((my)*account|apis|calendar|clients[0-9]+|consent|encrypted|imap|mail|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/
 /^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/
 /^(imap|pop|smtp)\.gmail\.com$/
 /^.*-pa.googleapis\.com$/
@@ -532,7 +532,6 @@ filmesonline1080p.com
 finansonline.com
 findthedata.com
 accounts.firefox.com
-fitbit.com
 fitnessconnoisseur.com
 flight-report.com
 flooxer.com
