@@ -8,6 +8,7 @@
 /^(.*\.)*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/
 /^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/
 /^(.*\.)*itunes(essentials|festivals|match|su)\.com$/
+/^account\..*$/
 ### WHITELIST DOMAINS ###
 city1016.ae
 leech.ae
@@ -1113,7 +1114,6 @@ affiliate.skiamade.com
 skidrowcrack.com
 api-merchants.skimlinks.com
 authentication-api.skimlinks.com
-account.skrill.com
 pay.skrill.com
 skylinewebcams.com
 skype.com
@@ -3979,7 +3979,6 @@ trackitonline.ru
 transcredit.ru
 online.transstroybank.ru
 trust.ru
-account.ubank.ru
 ubrr.ru
 udengi.ru
 umbank.ru
