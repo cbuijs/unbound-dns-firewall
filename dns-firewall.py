@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v6.0-20180221 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.1-20180228 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -24,7 +24,7 @@ as usual (i.e. unbound will resolve it). If it is in the blacklist, unbound
 stops resolution and returns the IP address configured in intercept_address,
 or REFUSED reply if left empty.
 
-Note: The whitelist has precedence over blacklist.
+Note: The whitelist has precedence over blacklist (see 'disablewhitelist' below).
 
 The whitelist and blacklist domain matching is done with every requested domain
 and includes it subdomains.
@@ -32,11 +32,12 @@ and includes it subdomains.
 The regex versions will match whatever is defined. It will match sequentially
 and stops processing after the first hit.
 
-Caching: this module will cache all results after processinging to speed things up,
-see caching parameters below.
+Caching: this module will cache all black or whitelisted results after processinging to speed
+things up, see caching parameters below.
 
 Install and configure:
 
+- Make sure all modules used are availble (check 'from" and 'import" statements above).
 - Copy dns-firewall.py to unbound directory. 
 - If needed, change "intercept_address" below.
 - Change unbound.conf as follows:
@@ -52,10 +53,13 @@ Install and configure:
 
 TODO:
 
-- Better Documentation / Remarks / Comments
+- !!! Better Documentation / Remarks / Comments
+- !!! Simplification of IPv4/IPv6 lists and get rid of consolidated list
 
 =========================================================================================
 '''
+
+# Modules
 
 # Make sure modules can be found
 import sys
@@ -80,6 +84,10 @@ import pytricia
 # Use expiringdictionary for cache
 from expiringdict import ExpiringDict
 
+##########################################################################################
+
+# Variables/Dictionaries/Etc ...
+
 # logging tag
 tag = 'DNS-FIREWALL INIT: '
 tagcount = 0
@@ -102,12 +110,12 @@ lists = '/etc/unbound/dns-firewall.lists'
 # Lists
 blacklist = dict() # Domains blacklist
 whitelist = dict() # Domains whitelist
-cblacklist = pytricia.PyTricia(128) # IP blacklist
-cwhitelist = pytricia.PyTricia(128) # IP whitelist
-cblacklist4 = pytricia.PyTricia(32) # IP blacklist
-cwhitelist4 = pytricia.PyTricia(32) # IP whitelist
-cblacklist6 = pytricia.PyTricia(128) # IP blacklist
-cwhitelist6 = pytricia.PyTricia(128) # IP whitelist
+cblacklist = pytricia.PyTricia(128) # IPv4/IPv6 blacklist
+cwhitelist = pytricia.PyTricia(128) # IPv4/IPv6 whitelist
+cblacklist4 = pytricia.PyTricia(32) # IPv4 blacklist
+cwhitelist4 = pytricia.PyTricia(32) # IPv4 whitelist
+cblacklist6 = pytricia.PyTricia(128) # IPv6 blacklist
+cwhitelist6 = pytricia.PyTricia(128) # IPv6 whitelist
 rblacklist = dict() # Regex blacklist (maybe replace with set()?)
 rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 
@@ -200,7 +208,7 @@ exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
 
-#########################################################################################
+##########################################################################################
 
 # Check against lists
 def in_list(name, bw, type, rrtype='ALL'):
@@ -288,7 +296,8 @@ def in_list(name, bw, type, rrtype='ALL'):
 
     return False
 
-# Check cache
+
+# Check if entry is in cache
 def in_cache(bw, name):
     tag = 'DNS-FIREWALL FILTER: '
     if (bw == 'black'):
@@ -303,7 +312,7 @@ def in_cache(bw, name):
     return False
 
 
-# Add to cache
+# Add matched entry to cache
 def add_to_cache(bw, name):
     tag = 'DNS-FIREWALL FILTER: '
 
@@ -428,7 +437,7 @@ def clear_cache():
     return True
 
 
-# Maintenance lists
+# Maintenance lists, check expiry, reload, etc...
 def maintenance_lists(count):
     tag = 'DNS-FIREWALL MAINTENACE: '
 
@@ -475,59 +484,70 @@ def load_lists(force, savelists):
     global cwhitelist4
     global cblacklist6
     global cwhitelist6
+    global tldfile
     
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
         }
 
+    # clear lists if already filled
     if (len(blacklist) > 0) or (len(whitelist) > 0):
         clear_lists()
 
-    # Read Lists
+    # Get top-level-domains
     if tldfile:
+        tldlist.clear()
         age = file_exist(tldfile)
 	if not age or age > maxlistage:
-            log_info(tag + 'Downloading IANA TLD list')
+            log_info(tag + 'Downloading IANA TLD list to \"' + tldfile + '\"')
             r = requests.get('https://data.iana.org/TLD/tlds-alpha-by-domain.txt', headers=headers, allow_redirects=True)
             if r.status_code == 200:
                 try:
                     with open(tldfile, 'w') as f:
-                        f.write(r.text.encode('ascii', 'ignore').replace('\r', ''))
+                        f.write(r.text.encode('ascii', 'ignore').replace('\r', '').lower())
 
                 except IOError:
                     log_err(tag + 'Unable to write to file \"' + tldfile + '\"')
+                    tldfile = False
 
-        log_info(tag + 'Fetching TLD list \"' + tldfile + '\"')
-        try:
-            with open(tldfile, 'r') as f:
-                for line in f:
-                    entry = line.strip().lower()
-                    if not (entry.startswith("#")) and not (len(entry) == 0):
-                        tldlist[entry] = True
+        if tldfile:
+            log_info(tag + 'Fetching TLD list from \"' + tldfile + '\"')
+            try:
+                with open(tldfile, 'r') as f:
+                    for line in f:
+                        entry = line.strip()
+                        if not (entry.startswith("#")) and not (len(entry) == 0):
+                            tldlist[entry] = True
 
-        except IOError:
-            log_err(tag + 'Unable to read from file \"' + tldfile + '\"')
+            except IOError:
+                log_err(tag + 'Unable to read from file \"' + tldfile + '\"')
+                tldfile = False
 
-        if rfc2606:
-            tldlist['example'] = True
-            tldlist['invalid'] = True
-            tldlist['localhost'] = True
-            tldlist['test'] = True
+            if tldfile:
+                if rfc2606:
+                    tldlist['example'] = True
+                    tldlist['invalid'] = True
+                    tldlist['localhost'] = True
+                    tldlist['test'] = True
 
-        if intranet:
-            tldlist['corp'] = True
-            tldlist['home'] = True
-            tldlist['host'] = True
-            tldlist['lan'] = True
-            tldlist['local'] = True
-            tldlist['localdomain'] = True
-            tldlist['router'] = True
-            tldlist['workgroup'] = True
+                if intranet:
+                    tldlist['corp'] = True
+                    tldlist['home'] = True
+                    tldlist['host'] = True
+                    tldlist['lan'] = True
+                    tldlist['local'] = True
+                    tldlist['localdomain'] = True
+                    tldlist['router'] = True
+                    tldlist['workgroup'] = True
+
+            log_info(tag + 'fetched ' + str(len(tldlist)) +  ' TLDs')
+
 
     #    if intercept_host:
     #        tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
 
+    # Read Lists
     readblack = True
     readwhite = True
     if savelists and not force:
@@ -711,6 +731,7 @@ def read_lists(id, name, regexlist, iplist, domainlist, force):
 
                             elif (isdomain.match(entry)):
                                     # It is a domain
+                                    entry = entry.strip('.').lower()
 
                                     # Strip 'www." if appropiate
                                     if wwwregex.match(entry):
@@ -718,7 +739,6 @@ def read_lists(id, name, regexlist, iplist, domainlist, force):
                                         if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
                                         entry = '.'.join(entry.split('.')[1:])
 
-                                    entry = entry.strip('.').lower()
                                     if entry:
                                         if tldlist and not force:
                                             tld = entry.split('.')[-1:][0]
@@ -727,7 +747,7 @@ def read_lists(id, name, regexlist, iplist, domainlist, force):
                                                 entry = False
                                                 
                                         if entry:
-                                            domainlist[entry] = str(id)
+                                            domainlist[entry] = id
                                             domaincount += 1
 
                             else:
@@ -817,7 +837,6 @@ def generate_response(qstate, rname, rtype, rrtype):
 
 # Domain aggregator, removes subdomains if parent exists
 def optimize_domlists(bw, listname):
-    return True
     tag = 'DNS-FIREWALL LISTS: '
 
     global blacklist
@@ -868,10 +887,7 @@ def optimize_domlists(bw, listname):
     return False
 
 
-# Uncomplicate lists, removed whitelisted blacklist entries
-# !!! NEEDS WORK, TOO SLOW !!!
-# !!! Also not really necesarry as already taken care of by logic in the procedures !!!
-# !!! Just memory saver and potential speed up as lists are smaller !!!
+# Uncomplicate lists, removed whitelisted domains from blacklist
 def uncomplicate_lists():
     tag = 'DNS-FIREWALL LISTS: '
 
@@ -929,7 +945,7 @@ def uncomplicate_lists():
     return True
 
 
-# uncomplicate IP lists
+# Uncomplicate IP lists, remove whitelisted IP's from blacklist
 def uncomplicate_ip_lists():
     tag = 'DNS-FIREWALL LISTS: '
 
@@ -968,7 +984,7 @@ def uncomplicate_ip_lists():
     return True
 
 
-# Remove entries from domains already matchin regex
+# Remove entries from domains already matching by a regex
 def unreg_lists(bw, listname):
     tag = 'DNS-FIREWALL LISTS: '
 
@@ -1007,7 +1023,7 @@ def unreg_lists(bw, listname):
     return True
 
 
-# Save lists
+# Save lists to files
 # !!!! NEEDS WORK AND SIMPLIFIED !!!!
 def write_out(whitefile, blackfile):
     tag = 'DNS-FIREWALL LISTS: '
@@ -1124,7 +1140,7 @@ def aggregate_ip(iplist, listname, aggregate):
     return iplist4, iplist6
 
 
-# Check if file exists and return age if so
+# Check if file exists and return age (in seconds) if so
 def file_exist(file):
     if os.path.isfile(file):
         fstat = os.stat(file)
@@ -1279,6 +1295,7 @@ def execute_command(qstate):
     return rc
 
 
+# Save cache to file
 def save_cache():
     tag = 'DNS-FIREWALL CACHE: '
 
@@ -1298,6 +1315,7 @@ def save_cache():
     return True
 
 
+# Unload/Finish-up
 def deinit(id):
     tag = 'DNS-FIREWALL DE-INIT: '
     log_info(tag + 'Shutting down')
@@ -1309,13 +1327,14 @@ def deinit(id):
     return True
 
 
+# Sub-Query
 def inform_super(id, qstate, superqstate, qdata):
     tag = 'DNS-FIREWALL INFORM-SUPER: '
     log_info(tag + 'HI!')
     return True
 
 
-# Main beef
+# Main beef/process
 def operate(id, event, qstate, qdata):
     tag = 'DNS-FIREWALL INIT: '
 
@@ -1325,7 +1344,7 @@ def operate(id, event, qstate, qdata):
     tagcount += 1
 
     if maintenance and ((tagcount) % maintenance == 0):
-        start_new_thread(maintenance_lists, (True,)) # !!! EXPERIMENTAL !!!
+        start_new_thread(maintenance_lists, (True,))
 
     cip = client_ip(qstate)
 
@@ -1343,7 +1362,7 @@ def operate(id, event, qstate, qdata):
         if qname:
             #if cip == '127.0.0.1' and (qname.endswith(commandtld)) and execute_command(qstate):
             if cip == '127.0.0.1' and (qname.endswith(commandtld)):
-                start_new_thread(execute_command, (qstate,)) # !!! EXPERIMENTAL !!!
+                start_new_thread(execute_command, (qstate,))
 
                 qstate.return_rcode = RCODE_NXDOMAIN
                 qstate.ext_state[id] = MODULE_FINISHED
