@@ -1,9 +1,10 @@
 ### WHITELIST REGEXES ###
-/^(.*\.)*((my)*account|apis|calendar|clients[0-9]+|consent|encrypted|imap|mail|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/
+/^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/
 /^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/
 /^(imap|pop|smtp)\.gmail\.com$/
-/^.*-pa.googleapis\.com$/
+/^(?!fonts)\.googleapis\.com$/
 /^(.*\.)*gvt[0-9]\.com$/
+/^(.*\.)*googleusercontent\.com$/
 /^(.*\.)*(apple|icloud|itunes)\.com$/
 /^(.*\.)*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/
 /^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/
@@ -593,10 +594,12 @@ goldderby.com
 goldsday.com
 goodvideohost.com
 android.clients.google.com
-googleapis.com
+accountsettingsmobile-pa.googleapis.com
+androidpay-users-pa.googleapis.com
+androidwearcloudsync-pa.googleapis.com
+trips-pa.googleapis.com
 googlecode.com
 googlecommerce.com
-googleusercontent.com
 gosanangelo.com
 3dsecure.gpwebpay.com
 grabtaxi.com
@@ -4330,16 +4333,13 @@ nedbank.co.za
 standardbank.co.za
 hosts.ubuntu101.co.za
 hackintosh.zone
-### WHITELIST CIDRs ###
+### WHITELIST IPv4 ###
 8.8.4.4/32
 8.8.8.8/32
 9.9.9.9/32
-2a00:5a60::ad1:ff/128
-2a00:5a60::ad2:ff/128
-2a00:5a60::bad1:ff/128
-2a00:5a60::bad2:ff/128
 95.56.246.182/32
 127.0.0.1/32
+149.112.112.112/32
 176.103.130.130/32
 176.103.130.131/32
 176.103.130.132/32
@@ -4352,4 +4352,9 @@ hackintosh.zone
 194.105.148.87/32
 213.135.106.194/32
 213.230.210.230/32
+### WHITELIST IPv6 ###
+2a00:5a60::ad1:ff/128
+2a00:5a60::ad2:ff/128
+2a00:5a60::bad1:ff/128
+2a00:5a60::bad2:ff/128
 ### WHITELIST EOF ###
