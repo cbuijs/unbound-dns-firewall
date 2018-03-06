@@ -1,9 +1,8 @@
 #!/usr/bin/env python -OO -vv
 # -*- coding: utf-8 -*-
-
 '''
 =========================================================================================
- dns-firewall.py: v6.16-20180306 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.18-20180306 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -206,7 +205,7 @@ isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus under
 # Regex for excluded entries to fix issues
 #exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 #exclude = regex.compile('^(fastly.net|googl(e|eapi[s]*|evideo)\.com|site)$', regex.I)
-exclude = regex.compile('^(127\.0\.0\.1|::1|localhost|site)$', regex.I)
+exclude = regex.compile('^(127\.0\.0\.1|::1|localhost)$', regex.I)
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -492,6 +491,7 @@ def load_lists(force, savelists):
     global cwhitelist6
     global tldfile
     global excludelist
+    global exclude
     
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = {
@@ -594,13 +594,18 @@ def load_lists(force, savelists):
                                 else:
                                     filettl = maxlistage
     
-                                fregex = '^(?P<entry>[a-zA-Z0-9\.\-]+)$'
+                                fregex = '^(?P<entry>[a-zA-Z0-9\.\-\_]+)$'
                                 if len(element) > 5:
                                     r = element[5]
                                     if r.find('(?P<entry>') == -1:
                                         log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
                                     else:
                                         fregex = r
+
+                                if len(element) > 6:
+                                    exclude = regex.compile(element[6], regex.I)
+                                else:
+                                    exclude = regex.compile('^(127\.0\.0\.1|::1|localhost)$', regex.I)
     
                                 fexists = False
     
@@ -677,7 +682,7 @@ def load_lists(force, savelists):
     blacklist[intercept_host.strip('.')] = True
 
     # Excluding domains
-    if excludelist:
+    if excludelist and readblack and readwhite:
         optimize_domlists('exclude', 'ExcludeDoms')
         blacklist = exclude_list(blacklist, 'BlackDoms')
         whitelist = exclude_list(whitelist, 'WhiteDoms')
@@ -734,53 +739,57 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                 for line in f:
                     entry = line.strip().replace('\r', '')
                     if not (entry.startswith("#")) and not (len(entry) == 0):
-                        if (isregex.match(entry)):
-                            # It is an Regex
-                            cleanregex = entry.strip('/')
-                            regexlist[regexcount,0] = str(id)
-                            regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
-                            regexlist[regexcount,2] = cleanregex
-                            regexcount += 1
+                        if not (exclude.match(entry)):
+                            if (isregex.match(entry)):
+                                # It is an Regex
+                                cleanregex = entry.strip('/')
+                                regexlist[regexcount,0] = str(id)
+                                regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
+                                regexlist[regexcount,2] = cleanregex
+                                regexcount += 1
 
-                        elif (ipregex.match(entry)):
-                            # It is an IP
-                            if checkresponse:
-                                if entry.find('/') == -1: # Check if Single IP or CIDR already
-                                    if entry.find(':') == -1:
-                                        entry = entry + '/32' # Single IPv4 Address
-                                    else:
-                                        entry = entry + '/128' # Single IPv6 Address
+                            elif (ipregex.match(entry)):
+                                # It is an IP
+                                if checkresponse:
+                                    if entry.find('/') == -1: # Check if Single IP or CIDR already
+                                        if entry.find(':') == -1:
+                                            entry = entry + '/32' # Single IPv4 Address
+                                        else:
+                                            entry = entry + '/128' # Single IPv6 Address
 
-                                if entry:
-                                    ip = entry.lower()
-                                    iplist[ip] = '\"' + ip + '\" (' + str(id) + ')'
-                                    ipcount += 1
-
-
-                        elif (isdomain.match(entry)):
-                                # It is a domain
-                                entry = entry.strip('.').lower()
-
-                                # Strip 'www." if appropiate
-                                if wwwregex.match(entry):
-                                    label = entry.split('.')[0]
-                                    if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
-                                    entry = '.'.join(entry.split('.')[1:])
-
-                                if entry:
-                                    if tldlist and not force:
-                                        tld = entry.split('.')[-1:][0]
-                                        if not tld in tldlist:
-                                            if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
-                                            entry = False
-                                                
                                     if entry:
-                                        domainlist[entry] = id
-                                        domaincount += 1
+                                        ip = entry.lower()
+                                        iplist[ip] = '\"' + ip + '\" (' + str(id) + ')'
+                                        ipcount += 1
+
+
+                            elif (isdomain.match(entry)):
+                                    # It is a domain
+                                    entry = entry.strip('.').lower()
+    
+                                    # Strip 'www." if appropiate
+                                    if wwwregex.match(entry):
+                                        label = entry.split('.')[0]
+                                        if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
+                                        entry = '.'.join(entry.split('.')[1:])
+
+                                    if entry:
+                                        if tldlist and not force:
+                                            tld = entry.split('.')[-1:][0]
+                                            if not tld in tldlist:
+                                                if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
+                                                entry = False
+                                                
+                                        if entry:
+                                            domainlist[entry] = id
+                                            domaincount += 1
+
+                            else:
+                                log_err(tag + name + ': Invalid line \"' + entry + '\"')
 
                         else:
-                            log_err(tag + name + ': Invalid line \"' + entry + '\"')
-                            
+                            if (debug >= 1): log_info(tag + name + ': Skipped/Excluded line \"' + entry + '\"')
+
 
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from ' + bw + '-file/list \"' + name + '\"')
                 if (debug >= 2): log_info(tag + 'Total ' + str(len(regexlist)/3) + ' REGEXES, ' + str(len(iplist)) + ' CIDRS and ' + str(len(domainlist)) + ' DOMAINS in ' + bw + '-list')
