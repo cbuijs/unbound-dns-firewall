@@ -3,7 +3,7 @@
 
 '''
 =========================================================================================
- dns-firewall.py: v6.1-20180228 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.16-20180306 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -118,6 +118,7 @@ cblacklist6 = pytricia.PyTricia(128) # IPv6 blacklist
 cwhitelist6 = pytricia.PyTricia(128) # IPv6 whitelist
 rblacklist = dict() # Regex blacklist (maybe replace with set()?)
 rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
+excludelist = dict() # Domain excludelist
 
 # Cache
 cachesize = 5000
@@ -176,13 +177,13 @@ autoreverse = True
 # Block IPv6 queries/responses
 blockv6 = True
 
-# CNAME Collapsing
+# CNAME Collapsing (note: whitelisted entries are not collapsed)
 collapse = True
 
-# Allow RFC 2606 names
+# Allow RFC 2606 TLD's
 rfc2606 = False
 
-# Allow common intranet names
+# Allow common intranet TLD's
 intranet = False
 
 # Default maximum age of downloaded lists, can be overruled in lists file
@@ -203,7 +204,9 @@ isregex = regex.compile('^/.*/$')
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
 
 # Regex for excluded entries to fix issues
-exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+#exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
+#exclude = regex.compile('^(fastly.net|googl(e|eapi[s]*|evideo)\.com|site)$', regex.I)
+exclude = regex.compile('^(127\.0\.0\.1|::1|localhost|site)$', regex.I)
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -405,11 +408,13 @@ def clear_lists():
     global cwhitelist4
     global cblacklist6
     global cwhitelist6
+    global excludelist
 
     log_info(tag + 'Clearing Lists')
 
     rwhitelist.clear()
     whitelist.clear()
+    excludelist.clear()
     for i in cwhitelist.keys():
         cwhitelist.delete(i)
 
@@ -420,6 +425,7 @@ def clear_lists():
 
     cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', True)
     cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', True)
+
 
     clear_cache()
 
@@ -485,6 +491,7 @@ def load_lists(force, savelists):
     global cblacklist6
     global cwhitelist6
     global tldfile
+    global excludelist
     
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = {
@@ -554,13 +561,13 @@ def load_lists(force, savelists):
         age = file_exist(whitesave)
         if age and age < maxlistage and not disablewhitelist:
             log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist, True)
+            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist, True, 'white')
             readwhite = False
 
         age = file_exist(blacksave)
         if age and age < maxlistage:
             log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist, True)
+            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist, True, 'black')
             readblack = False
 
     try:
@@ -572,7 +579,7 @@ def load_lists(force, savelists):
                     if len(element) > 2:
                         id = element[0]
                         bw = element[1].lower()
-                        if (bw == 'black' and readblack) or (bw == 'white' and readwhite):
+                        if (bw == 'black' and readblack) or (bw == 'white' and readwhite) or (bw == 'exclude' and (readwhite or readblack)):
                             file = element[2]
                             force = False
                             if (file.find('http://') == 0) or (file.find('https://') == 0):
@@ -638,10 +645,26 @@ def load_lists(force, savelists):
                                 force = True # Always load when file on disk
 
                             if bw == 'black':
-                                read_lists(id, file, rblacklist, cblacklist, blacklist, force)
-                            else:
+                                read_lists(id, file, rblacklist, cblacklist, blacklist, force, bw)
+                            elif bw == 'white':
                                 if not disablewhitelist:
-                                    read_lists(id, file, rwhitelist, cwhitelist, whitelist, force)
+                                    read_lists(id, file, rwhitelist, cwhitelist, whitelist, force, bw)
+                            elif bw == 'exclude':
+                                excount = 0
+                                try:
+                                    with open(file, 'r') as f:
+                                        for line in f:
+                                            entry = line.strip().replace('\r', '')
+                                            if (len(entry) > 0) and isdomain.match(entry):
+                                                excludelist[entry] = True
+                                                excount += 1
+
+                                    log_info(tag + 'Fetched ' + str(excount) + ' exclude entries from \"' + file + '\"')
+
+                                except IOError:
+                                    log_err(tag + 'Unable to open file \"' + file + '\"')
+                            else:
+                                log_err(tag + 'Unknow type \"' + bw + '\" for file \"' + file + '\"')
                         else:
                             log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
                     else:
@@ -652,6 +675,12 @@ def load_lists(force, savelists):
 
     # Redirect entry, we don't want to expose it
     blacklist[intercept_host.strip('.')] = True
+
+    # Excluding domains
+    if excludelist:
+        optimize_domlists('exclude', 'ExcludeDoms')
+        blacklist = exclude_list(blacklist, 'BlackDoms')
+        whitelist = exclude_list(whitelist, 'WhiteDoms')
 
     # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
     if readblack:
@@ -669,12 +698,12 @@ def load_lists(force, savelists):
     cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', readwhite)
     cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', readblack)
 
-    regexcount = str(len(rblacklist))
+    regexcount = str(len(rblacklist)/3)
     ipcount = str (len(cblacklist))
     domaincount = str(len(blacklist))
     log_info(tag + 'BlackList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs and ' + domaincount + ' DOMAINS')
 
-    regexcount = str(len(rwhitelist))
+    regexcount = str(len(rwhitelist)/3)
     ipcount = str (len(cwhitelist))
     domaincount = str(len(whitelist))
     log_info(tag + 'WhiteList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs and ' + domaincount + ' DOMAINS')
@@ -689,13 +718,13 @@ def load_lists(force, savelists):
 
 
 # Read file/list
-def read_lists(id, name, regexlist, iplist, domainlist, force):
+def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
     tag = 'DNS-FIREWALL LISTS: '
 
     if (len(name) > 0):
         try:
             with open(name, 'r') as f:
-                log_info(tag + 'Reading file/list \"' + name + '\" (' + id + ')')
+                log_info(tag + 'Reading ' + bw + '-file/list \"' + name + '\" (' + id + ')')
          
                 orgregexcount = (len(regexlist)/3-1)+1
                 regexcount = orgregexcount
@@ -705,59 +734,56 @@ def read_lists(id, name, regexlist, iplist, domainlist, force):
                 for line in f:
                     entry = line.strip().replace('\r', '')
                     if not (entry.startswith("#")) and not (len(entry) == 0):
-                        if not (exclude.match(entry)):
-                            if (isregex.match(entry)):
-                                # It is an Regex
-                                cleanregex = entry.strip('/')
-                                regexlist[regexcount,0] = str(id)
-                                regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
-                                regexlist[regexcount,2] = cleanregex
-                                regexcount += 1
+                        if (isregex.match(entry)):
+                            # It is an Regex
+                            cleanregex = entry.strip('/')
+                            regexlist[regexcount,0] = str(id)
+                            regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
+                            regexlist[regexcount,2] = cleanregex
+                            regexcount += 1
 
-                            elif (ipregex.match(entry)):
-                                # It is an IP
-                                if checkresponse:
-                                    if entry.find('/') == -1: # Check if Single IP or CIDR already
-                                        if entry.find(':') == -1:
-                                            entry = entry + '/32' # Single IPv4 Address
-                                        else:
-                                            entry = entry + '/128' # Single IPv6 Address
+                        elif (ipregex.match(entry)):
+                            # It is an IP
+                            if checkresponse:
+                                if entry.find('/') == -1: # Check if Single IP or CIDR already
+                                    if entry.find(':') == -1:
+                                        entry = entry + '/32' # Single IPv4 Address
+                                    else:
+                                        entry = entry + '/128' # Single IPv6 Address
 
-                                    if entry:
-                                        ip = entry.lower()
-                                        iplist[ip] = '\"' + ip + '\" (' + str(id) + ')'
-                                        ipcount += 1
+                                if entry:
+                                    ip = entry.lower()
+                                    iplist[ip] = '\"' + ip + '\" (' + str(id) + ')'
+                                    ipcount += 1
 
 
-                            elif (isdomain.match(entry)):
-                                    # It is a domain
-                                    entry = entry.strip('.').lower()
+                        elif (isdomain.match(entry)):
+                                # It is a domain
+                                entry = entry.strip('.').lower()
 
-                                    # Strip 'www." if appropiate
-                                    if wwwregex.match(entry):
-                                        label = entry.split('.')[0]
-                                        if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
-                                        entry = '.'.join(entry.split('.')[1:])
+                                # Strip 'www." if appropiate
+                                if wwwregex.match(entry):
+                                    label = entry.split('.')[0]
+                                    if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
+                                    entry = '.'.join(entry.split('.')[1:])
 
-                                    if entry:
-                                        if tldlist and not force:
-                                            tld = entry.split('.')[-1:][0]
-                                            if not tld in tldlist:
-                                                if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
-                                                entry = False
+                                if entry:
+                                    if tldlist and not force:
+                                        tld = entry.split('.')[-1:][0]
+                                        if not tld in tldlist:
+                                            if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
+                                            entry = False
                                                 
-                                        if entry:
-                                            domainlist[entry] = id
-                                            domaincount += 1
+                                    if entry:
+                                        domainlist[entry] = id
+                                        domaincount += 1
 
-                            else:
-                                log_err(tag + name + ': Invalid line \"' + entry + '\"')
-                            
                         else:
-                            if (debug >= 2): log_info(tag + name + ': Excluded line \"' + entry + '\"')
+                            log_err(tag + name + ': Invalid line \"' + entry + '\"')
+                            
 
-
-                if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from file/list \"' + name + '\"')
+                if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from ' + bw + '-file/list \"' + name + '\"')
+                if (debug >= 2): log_info(tag + 'Total ' + str(len(regexlist)/3) + ' REGEXES, ' + str(len(iplist)) + ' CIDRS and ' + str(len(domainlist)) + ' DOMAINS in ' + bw + '-list')
 
                 return True
 
@@ -841,14 +867,17 @@ def optimize_domlists(bw, listname):
 
     global blacklist
     global whitelist
+    global excludelist
 
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
 
     # Get all keys (=domains) into a sorted/uniqued list
     if (bw == 'black'):
 	name = blacklist
-    else:
+    elif (bw == 'white'):
         name = whitelist
+    elif (bw == 'exclude'):
+        name = excludelist
 
     domlist = dom_sort(name.keys())
 
@@ -876,8 +905,10 @@ def optimize_domlists(bw, listname):
 
     if (bw == 'black'):
         blacklist = new
-    else:
+    elif (bw == 'white'):
         whitelist = new
+    elif (bw == 'exclude'):
+        excludelist = new
 
     if (debug >= 2): log_info(tag + '\"' + listname + '\": Number of domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
@@ -916,7 +947,7 @@ def uncomplicate_lists():
                 listb.remove(found)
 
             checklistb = '#'.join(listb) + "#"
-                
+
     # Remove blacklisted entries when matched against whitelist regex
     for i in range(0,len(rwhitelist)/3):
         checkregex = rwhitelist[i,1]
@@ -938,11 +969,46 @@ def uncomplicate_lists():
 
     blacklist = new
 
-    if (debug >= 2): log_info(tag + 'Number of blocklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
+    if (debug >= 2): log_info(tag + 'Number of blacklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
     uncomplicate_ip_lists()
 
     return True
+
+
+# Check if excluded
+def exclude_list(domlist, listname):
+    global excludelist
+
+    tag = 'DNS-FIREWALL LISTS: '
+
+    log_info( tag + 'Excluding \"' + listname + '\"')
+
+    newlist = domlist
+    checklist = '#'.join(newlist.keys()) + '#'
+
+    deleted = 0
+
+    for domain in dom_sort(excludelist.keys()):
+        if domain in newlist:
+                lname = newlist.pop(domain, None)
+                if (debug > 1): log_info(tag + 'Removed excluded entry \"' + domain + '\" from \"' + listname + '\" (' + lname + ')')
+                checklist = '#'.join(newlist.keys()) + '#'
+                deleted += 1
+
+        if '.' + domain + "#" in checklist:
+            for found in filter(lambda x: x.endswith('.' + domain), domlist.keys()):
+                lname = newlist.pop(found, None)
+                if (debug > 1): log_info(tag + 'Removed excluded entry \"' + found + '\" (' + domain + ') from \"' + listname + '\" (' + lname + ')')
+                checklist = '#'.join(newlist.keys()) + '#'
+                deleted += 1
+
+    before = len(domlist)
+    after = before - deleted
+
+    log_info(tag + '\"' + listname + '\" went from ' + str(before) + ' to ' + str(after) + ', after removing ' + str(deleted) + ' excluded entries')
+
+    return newlist
 
 
 # Uncomplicate IP lists, remove whitelisted IP's from blacklist
@@ -956,6 +1022,7 @@ def uncomplicate_ip_lists():
 
     listw = cwhitelist.keys()
     listb = cblacklist.keys()
+    listw4, listw6 = split_46(cwhitelist)
 
     # Remove all 1-to-1/same whitelisted entries from blacklist
     # !!! We need logging on this !!!
@@ -963,9 +1030,17 @@ def uncomplicate_ip_lists():
 
     # loop through blacklist entries and find whitelisted entries to remove
     for ip in listb:
-        if ip in cwhitelist:
+        found = False
+        if ip.find(':') == -1:
+            if ip in listw4:
+                found = True
+        else:
+            if ip in listw6:
+                found = True
+
+        if found:
             if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + ip + '\" due to whitelisted \"' + cwhitelist[ip] + '\"')
-            listb.remove(found)
+            listb.remove(ip)
 
     new = pytricia.PyTricia(128)
 
@@ -979,7 +1054,7 @@ def uncomplicate_ip_lists():
 
     cblacklist = new
 
-    if (debug >= 2): log_info(tag + 'Number of blocklisted IPs went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
+    if (debug >= 2): log_info(tag + 'Number of blacklisted IPs went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
     return True
 
@@ -992,6 +1067,7 @@ def unreg_lists(bw, listname):
     global whitelist
     global rblacklist
     global rwhitelist
+    global excludelist
 
     if (bw == 'black'):
         dlist = blacklist
@@ -1044,8 +1120,14 @@ def write_out(whitefile, blackfile):
                 f.write(line)
                 f.write('\n')
 
-            f.write('### WHITELIST CIDRs ###\n')
-            for a in cwhitelist.keys():
+            list4, list6 = split_46(cwhitelist)
+            f.write('### WHITELIST IPv4 ###\n')
+            for a in list4.keys():
+                f.write(a)
+                f.write('\n')
+
+            f.write('### WHITELIST IPv6 ###\n')
+            for a in list6.keys():
                 f.write(a)
                 f.write('\n')
 
@@ -1066,8 +1148,14 @@ def write_out(whitefile, blackfile):
                 f.write(line)
                 f.write('\n')
 
-            f.write('### BLACKLIST CIDRs ###\n')
-            for a in cblacklist.keys():
+            list4, list6 = split_46(cblacklist)
+            f.write('### BLACKLIST IPv4 ###\n')
+            for a in list4.keys():
+                f.write(a)
+                f.write('\n')
+
+            f.write('### BLACKLIST IPv6 ###\n')
+            for a in list6.keys():
                 f.write(a)
                 f.write('\n')
 
@@ -1088,13 +1176,8 @@ def dom_sort(domlist):
     return newdomlist
 
 
-# Aggregate IP list
-def aggregate_ip(iplist, listname, aggregate):
-    tag = 'DNS-FIREWALL LISTS: '
-
-    log_info(tag + 'Aggregating \"' + listname + '\"')
-
-    newlist = iplist
+# Split IPv4/IPv6 list
+def split_46(iplist):
     iplist4 = pytricia.PyTricia(32)
     iplist6 = pytricia.PyTricia(128)
 
@@ -1103,6 +1186,18 @@ def aggregate_ip(iplist, listname, aggregate):
             iplist4[ip] = iplist[ip]
         else:
             iplist6[ip] = iplist[ip]
+
+    return iplist4, iplist6
+
+
+# Aggregate IP list
+def aggregate_ip(iplist, listname, aggregate):
+    tag = 'DNS-FIREWALL LISTS: '
+
+    log_info(tag + 'Aggregating \"' + listname + '\"')
+
+    newlist = iplist
+    iplist4, iplist6 = split_46(iplist)
 
     if aggregate:
         for ip in iplist.keys():
@@ -1169,6 +1264,7 @@ def init(id, cfg):
     global cwhitelist4
     global cblacklist6
     global cwhitelist6
+    global excludelist
 
     log_info(tag + 'Initializing')
 
@@ -1278,14 +1374,14 @@ def execute_command(qstate):
             domain = '.'.join(qname.split('.')[:-2])
             if domain in whitelist:
                 log_info(tag + 'Removed \"' + domain + '\" from whitelist')
-                del whitelist[domain]
+                whitelist.pop(domain, None)
                 clear_cache()
         elif qname.endswith('.del.blacklist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-2])
             if domain in blacklist:
                 log_info(tag + 'Removed \"' + domain + '\" from blacklist')
-                del blacklist[domain]
+                blacklist.pop(domain, None)
                 clear_cache()
 
     if rc:
