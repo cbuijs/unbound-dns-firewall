@@ -597,6 +597,11 @@ gohuskies.com
 goldderby.com
 goldsday.com
 goodvideohost.com
+android.clients.google.com
+accountsettingsmobile-pa.googleapis.com
+androidpay-users-pa.googleapis.com
+androidwearcloudsync-pa.googleapis.com
+trips-pa.googleapis.com
 googlecode.com
 googlecommerce.com
 googlevideo.com
@@ -3141,6 +3146,7 @@ p13.dynect.net
 sonos.com.edgekey.net
 emergingthreats.net
 eurogamer.net
+global.ssl.fastly.net
 faz.net
 fbtonline.net
 filechoco.net
@@ -4070,7 +4076,7 @@ ipb.citibank.com.sg
 ally.sh
 pasteca.sh
 whisper.sh
-site
+rnbxclusive.site
 ib.raiffeisen.sk
 danger.rulez.sk
 ib.slsp.sk
@@ -4346,7 +4352,6 @@ hackintosh.zone
 8.8.8.8/32
 9.9.9.9/32
 95.56.246.182/32
-127.0.0.1/32
 149.112.112.112/32
 176.103.130.130/32
 176.103.130.131/32
