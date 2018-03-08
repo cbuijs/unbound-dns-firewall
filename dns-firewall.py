@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.35-20180308 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.36-20180308 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -68,8 +68,8 @@ sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 import os, os.path, commands, datetime, gc
 from thread import start_new_thread
 
-# DNS Resolver
-import dns.resolver
+# DNS Resolver (SafeDNS)
+#import dns.resolver
 
 # Enable Garbage collection
 gc.enable()
@@ -215,11 +215,11 @@ exclude = regex.compile('^(127\.0\.0\.1|::1|localhost)$', regex.I)
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
 
 # SafeDNS - HIGHLY EXPERIMENTAL AND WILL BREAK STUFF, USE AT OWN RISK !!!
-safedns = False
-safednsblock = False # When False, only monitoring/reporting
-safescore = 33 # Percentage, if score is below we block
-nameservers = dict()
-nameserverslist = '/etc/unbound/safenameservers'
+#safedns = False
+#safednsblock = False # When False, only monitoring/reporting
+#safescore = 33 # Percentage, if score is below we block
+#nameservers = dict()
+#nameserverslist = '/etc/unbound/safenameservers'
 
 ##########################################################################################
 
@@ -1313,7 +1313,7 @@ def init(id, cfg):
     global cblacklist6
     global cwhitelist6
     global excludelist
-    global safedns
+#    global safedns
 
     log_info(tag + 'Initializing')
 
@@ -1321,23 +1321,23 @@ def init(id, cfg):
     load_lists(False, savelists)
     #start_new_thread(load_lists, (savelists,)) # !!! EXPERIMENTAL !!!
 
-    if safedns:
-        log_info(tag + 'Loading SafeDNS nameservers')
-        try:
-            with open(nameserverslist, 'r') as f:
-                for line in f:
-                    entry = line.strip().replace('\r', '')
-                    if not (entry.startswith("#")) and not (len(entry) == 0):
-                        element = entry.split('\t')
-			nameservers[element[0].upper()] = element[1].replace(' ', '')
-                        if (debug >= 1): log_info(tag + 'Fetched Nameservers for \"' + element[0] + '\" (' + element[1] + ')')
-
-        except IOError:
-            log_err(tag + 'Unable to open file \"' + nameserverlist + '\"')
-
-        if not ('DEFAULT' in nameservers):
-            safedns = False
-            log_err(tag + 'No \"DEFAULT\" nameserver, SafeDNS disabled')
+#    if safedns:
+#        log_info(tag + 'Loading SafeDNS nameservers')
+#        try:
+#            with open(nameserverslist, 'r') as f:
+#                for line in f:
+#                    entry = line.strip().replace('\r', '')
+#                    if not (entry.startswith("#")) and not (len(entry) == 0):
+#                        element = entry.split('\t')
+#			nameservers[element[0].upper()] = element[1].replace(' ', '')
+#                        if (debug >= 1): log_info(tag + 'Fetched Nameservers for \"' + element[0] + '\" (' + element[1] + ')')
+#
+#        except IOError:
+#            log_err(tag + 'Unable to open file \"' + nameserverlist + '\"')
+#
+#        if not ('DEFAULT' in nameservers):
+#            safedns = False
+#            log_err(tag + 'No \"DEFAULT\" nameserver, SafeDNS disabled')
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -1498,58 +1498,45 @@ def inform_super(id, qstate, superqstate, qdata):
 
 
 # Query DNS
-def query_dns(name, ns, type, qname, qtype, domain):
-    resolver = dns.resolver.Resolver(configure=False)
-    resolver.lifetime = 8
-    resolver.timeout = 2
-    resolver.nameservers = ns
-
-    #print '\nQUERY_DNS_QUERY', name, qname ,qtype
-    try:
-        if type == 'DNS':
-            response = resolver.query(qname, qtype)
-            if response:
-                #for answer in response:
-                    #print '-- QUERY_DNS_RESPONSE', name, qname, qtype, answer
-
-                if str(response.canonical_name).strip('.').lower() == str(qname).lower(): # Workaround for geo/loadbalancer cname crap
-                    return sorted(list(response))
-                else:
-                    #print '---- QUERY_DNS_RESPONSE - CANONICAL', name, qname, qtype, str(response.canonical_name).strip('.')
-                    return list(response.canonical_name)
-
-            return False
-
-        elif type == 'DNSBL':
-            response = resolver.query(qname + '.' + domain, qtype)
-            if response:
-                #print 'QUERY_DNS_RESPONSE', qname + '.' + domain, '->', response
-                #print '---- QUERY_DNS BLOCK!'
-                return 'BLOCK'
-
-            return False
-
-        else:
-            return False
-
-    except:
-        print "QUERY_DNS ERROR", qname, qtype
-        return False
-
-# Get DNS Params/Args
-def get_ns(nameservers, dns):
-    numfields = len(nameservers[dns].split(':'))
-    domain = False
-    if numfields > 1:
-        type = nameservers[dns].split(':')[0].upper()
-        ns = nameservers[dns].split(':')[1].split(',')
-        if numfields > 2:
-             domain = nameservers[dns].split(':')[2]
-    else:
-        type = 'DNS'
-        ns = nameservers[dns].split(',')
-
-    return type, ns, domain
+#def query_dns(name, ns, type, qname, qtype, domain):
+#    resolver = dns.resolver.Resolver(configure=False)
+#    resolver.lifetime = 8
+#    resolver.timeout = 2
+#    resolver.nameservers = ns
+#
+#    if qtype == 'A':
+#        answers = set()
+#        if type == 'DNS':
+#            response = resolver.query(qname, qtype)
+#            if response:
+#                for answer in response:
+#                    answers.add(str(answer.address))
+#
+#                return sorted(answers)
+#
+#        elif type == 'DNSBL':
+#            response = resolver.query(qname + '.' + domain, qtype)
+#            if response:
+#                for answer in response:
+#                    if str(answer.address).startswith('127.'):
+#                        return 'BLOCK'
+#
+#    return False
+#
+## Get DNS Params/Args
+#def get_ns(nameservers, dns):
+#    numfields = len(nameservers[dns].split(':'))
+#    domain = False
+#    if numfields > 1:
+#        type = nameservers[dns].split(':')[0].upper()
+#        ns = nameservers[dns].split(':')[1].split(',')
+#        if numfields > 2:
+#             domain = nameservers[dns].split(':')[2]
+#    else:
+#        type = 'DNS'
+#        ns = nameservers[dns].split(',')
+#
+#    return type, ns, domain
 
 # Main beef/process
 def operate(id, event, qstate, qdata):
@@ -1594,74 +1581,71 @@ def operate(id, event, qstate, qdata):
             # Check if whitelisted, if so, end module and DNS resolution continues as normal (no filtering)
             if not in_list(qname, 'white', 'QUERY', qtype):
 
-                # Check if blacklisted, if so process and block, if not check with safedns
+                # Check if blacklisted, if so process and block
                 if not in_list(qname, 'black', 'QUERY', qtype):
-                    # Use SafeDNS to determine if a domain is bad
-                    if safedns:
-                        #print '\nSafeDNS Query DEFAULT', qname, qtype
-                        type, ns, domain = get_ns(nameservers, 'DEFAULT')
-                        if ns:
-                            if (debug >= 2): log_info(tag + 'SafeDNS: Checking \"' + qname + '/' + qtype + '\" against DEFAULT (' + type + ')')
-
-                            defaultresponse = query_dns('DEFAULT', ns, type, qname, qtype, domain)
-                            if defaultresponse:
-                                maxscore = len(nameservers.keys()) - 1
-                                scorecount = 0
-                                for dns in sorted(nameservers.keys()):
-                                    if not dns == 'DEFAULT':
-                                        #print 'SafeDNS Query',dns, qname, qtype
-                                        type, ns, domain = get_ns(nameservers, dns)
-                                        if ns:
-                                            if (debug >= 2): log_info(tag + 'SafeDNS: Checking \"' + qname + '/' + qtype + '\" against ' + dns + ' (' + type + ')')
-
-                                            response = query_dns(dns, ns, type, qname, qtype, domain)
-                                            if response:
-                                                if type != 'DNS':
-                                                    if response == 'BLOCK':
-                                                        if safednsblock:
-                                                            log_info(tag + 'SafeDNS HIT: \"' + qname + '/' + qtype + '\" blocked by ' + dns + ' (' + type + ')')
-                                                            blockit = True
-                                                            break
-                                                        else:
-                                                            log_info(tag + 'SafeDNS MONITOR: \"' + qname + '/' + qtype + '\" blocked by ' + dns + ' (' + type + ')')
-
-                                                    maxscore -= 1
-
-                                                else:
-                                                    if response == defaultresponse:
-                                                        #print '-- SafeDNS Response', qname, 'same as DEFAULT'
-                                                        if (debug >= 3): log_info(tag + 'SafeDNS: ' + dns + ' same \"' + qname + '/' + qtype + '\"')
-                                                        scorecount += 1
-                                                    else:
-                                                        #print '-- SafeDNS Response', qname, 'different as DEFAULT'
-                                                        if (debug >= 3): log_info(tag + 'SafeDNS: ' + dns + ' different \"' + qname + '/' + qtype + '\"')
-                                            else:
-                                                if (debug >= 2): log_info(tag + 'SafeDNS: No response for \"' + qname + '/' + qtype + '\" using \"' + dns + '\"')
-                                                maxscore -= 1
-                                        else:
-                                            if (debug >= 2): log_info(tag + 'SafeDNS: No nameservers for \"' + dns + '\"')
-                                            maxscore -= 1
-
-
-                                if not blockit:
-                                    # Calculate score (percentage)
-                                    score = 100 * scorecount/maxscore
-                                    #print '-- SafeDNS Score', qname, str(score) + '%'
-                                    log_info(tag + 'SafeDNS: \"' + qname + '\" has ' + str(score) + '%% score')
-
-                                    if scorecount > 0 and maxscore > 0 and score > 0 and score < safescore:
-                                        #print '---- SafeDNS - BEEP!'
-                                        if safednsblock:
-                                            log_info(tag + 'SafeDNS HIT: \"' + qname + '/' + qtype + '\" (Score: ' + str(score) + ' percent same as DEFAULT)')
-                                            blockit = True
-                                        else:
-                                            log_info(tag + 'SafeDNS MONITOR: \"' + qname + '/' + qtype + '\" (Score: ' + str(score) + ' percent same as DEFAULT)')
-
-                            else:
-                                if (debug >= 2): log_info(tag + 'SafeDNS: No response for \"' + qname + '/' + qtype + '\" using \"DEFAULT\"')
-
-                        else:
-                            if (debug >= 2): log_info(tag + 'SafeDNS: No nameservers for \"DEFAULT\"')
+                    dummy = 0
+#                    # Use SafeDNS to determine if a domain is bad
+#                    if safedns and qtype == 'A':
+#                        type, ns, domain = get_ns(nameservers, 'DEFAULT')
+#                        if ns:
+#                            if (debug >= 2): log_info(tag + 'SafeDNS: Checking \"' + qname + '/' + qtype + '\" against DEFAULT (' + type + ')')
+#
+#                            defaultresponse = query_dns('DEFAULT', ns, type, qname, qtype, domain)
+#                            if defaultresponse:
+#                                maxscore = len(nameservers.keys()) - 1
+#                                scorecount = 0
+#                                for dns in sorted(nameservers.keys()):
+#                                    if not dns == 'DEFAULT':
+#                                        type, ns, domain = get_ns(nameservers, dns)
+#                                        if ns:
+#                                            if (debug >= 2): log_info(tag + 'SafeDNS: Checking \"' + qname + '/' + qtype + '\" against ' + dns + ' (' + type + ')')
+#
+#                                            response = query_dns(dns, ns, type, qname, qtype, domain)
+#                                            if response:
+#                                                if type != 'DNS':
+#                                                    if response == 'BLOCK':
+#                                                        if safednsblock:
+#                                                            log_info(tag + 'SafeDNS HIT: \"' + qname + '/' + qtype + '\" blocked by ' + dns + ' (' + type + ')')
+#                                                            blockit = True
+#                                                            break
+#                                                        else:
+#                                                            log_info(tag + 'SafeDNS MONITOR: \"' + qname + '/' + qtype + '\" blocked by ' + dns + ' (' + type + ')')
+#
+#                                                    maxscore -= 1
+#
+#                                                else:
+#                                                    print '\nSAFEDNS DEFAULT RESPONSE:', qname, defaultresponse
+#                                                    print 'SAFEDNS', dns, 'RESPONSE:', qname, response
+#                                                    if response == defaultresponse:
+#                                                        if (debug >= 3): log_info(tag + 'SafeDNS: ' + dns + ' same \"' + qname + '/' + qtype + '\" then DEFAULT')
+#                                                        scorecount += 1
+#                                                    else:
+#                                                        if (debug >= 2): log_info(tag + 'SafeDNS: ' + dns + ' different \"' + qname + '/' + qtype + '\" then DEFAULT')
+#                                            else:
+#                                                if (debug >= 2): log_info(tag + 'SafeDNS: No response for \"' + qname + '/' + qtype + '\" using \"' + dns + '\"')
+#                                                maxscore -= 1
+#                                        else:
+#                                            if (debug >= 2): log_info(tag + 'SafeDNS: No nameservers for \"' + dns + '\"')
+#                                            maxscore -= 1
+#
+#
+#                                if not blockit:
+#                                    # Calculate score (percentage)
+#                                    score = 100 * scorecount/maxscore
+#                                    log_info(tag + 'SafeDNS: \"' + qname + '\" has ' + str(score) + '%% score')
+#
+#                                    if scorecount > 0 and maxscore > 0 and score > 0 and score < safescore:
+#                                        if safednsblock:
+#                                            log_info(tag + 'SafeDNS HIT: \"' + qname + '/' + qtype + '\" (Score: ' + str(score) + '%% of DEFAULT)')
+#                                            blockit = True
+#                                        else:
+#                                            log_info(tag + 'SafeDNS MONITOR: \"' + qname + '/' + qtype + '\" (Score: ' + str(score) + '%% of DEFAULT)')
+#
+#                            else:
+#                                if (debug >= 2): log_info(tag + 'SafeDNS: No response for \"' + qname + '/' + qtype + '\" using \"DEFAULT\"')
+#
+#                        else:
+#                            if (debug >= 2): log_info(tag + 'SafeDNS: No nameservers for \"DEFAULT\"')
 
                 else:
                     blockit = True
