@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.46-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.48-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -671,8 +671,8 @@ def load_lists(force, savelists):
                                                             for line in f:
                                                                 matchentry = regex.match(fregex, line)
                                                                 if matchentry:
-                                                                    entry = matchentry.group('entry').lower()
-                                                                    if entry and not entry in seen:
+                                                                    entry = matchentry.group('entry').lower().strip()
+                                                                    if entry and len(entry) > 0 and not entry in seen:
                                                                         g.write(entry)
                                                                         g.write('\n')
                                                                         seen.add(entry)
@@ -872,7 +872,7 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                             skipped += 1
 
 
-                if (debug >= 2): log_info(tag + 'Processed ' + str(total) + ' entries and skipped (existing/invalid) ' + str(skipped) + ' ones')
+                if (debug >= 2): log_info(tag + 'Processed ' + str(total) + ' entries and skipped ' + str(skipped) + ' (existing/invalid) ones from \"' + id + '\"')
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from ' + bw + '-file/list \"' + name + '\"')
                 if (debug >= 2): log_info(tag + 'Total ' + str(len(regexlist)/3) + ' REGEXES, ' + str(len(iplist)) + ' CIDRS and ' + str(len(domainlist)) + ' DOMAINS in ' + bw + '-list')
 
