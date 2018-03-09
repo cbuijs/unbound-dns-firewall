@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.45-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.46-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -850,7 +850,8 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                                             if not tld in tldlist:
                                                 if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + domain + '\", TLD (' + tld + ') does not exist')
                                                 domain = False
-                                                
+                                                skipped += 1
+
                                         if domain:
                                             if domain in domainlist:
                                                 if domainlist[domain].find(id) == -1:
