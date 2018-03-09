@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.36-20180308 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.40-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -197,7 +197,6 @@ debug = 2
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
 ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
-#ip4regex = regex.compile('^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))*$', regex.I)
 
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
@@ -209,7 +208,7 @@ isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus under
 # Regex for excluded entries to fix issues
 #exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 #exclude = regex.compile('^(fastly.net|googl(e|eapi[s]*|evideo)\.com|site)$', regex.I)
-exclude = regex.compile('^(127\.0\.0\.1|::1|localhost)$', regex.I)
+exclude = regex.compile('^(127\.0\.0\.1|::1|local(host|net[s]*))$', regex.I)
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -225,7 +224,7 @@ wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
 
 # Check against lists
 def in_list(name, bw, type, rrtype='ALL'):
-    tag = 'DNS-FIREWALL FILTER: '
+    tag = 'DNS-FIREWALL ' + type + ' FILTER: '
     if not filtering:
         if (debug >= 2): log_info(tag + 'Filtering disabled, passthru \"' + name + '\" (RR:' + rrtype + ')')
         return False
@@ -312,7 +311,7 @@ def in_list(name, bw, type, rrtype='ALL'):
 
 # Check if entry is in cache
 def in_cache(bw, name):
-    tag = 'DNS-FIREWALL FILTER: '
+    tag = 'DNS-FIREWALL CACHE FILTER: '
     if (bw == 'black'):
         if name in blackcache:
             if (debug >= 2): log_info(tag + 'Found \"' + name + '\" in black-cache')
@@ -327,7 +326,7 @@ def in_cache(bw, name):
 
 # Add matched entry to cache
 def add_to_cache(bw, name):
-    tag = 'DNS-FIREWALL FILTER: '
+    tag = 'DNS-FIREWALL CACHE FILTER: '
 
     if autoreverse:
         addarpa = rev_ip(name)
@@ -375,7 +374,7 @@ def check_ip(ip, bw):
 
 # Check against REGEX lists (called from in_list)
 def check_regex(name, bw):
-    tag = 'DNS-FIREWALL FILTER: '
+    tag = 'DNS-FIREWALL REGEX FILTER: '
     if (bw == 'black'):
         rlist = rblacklist
     else:
@@ -763,60 +762,63 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                             if (isregex.match(entry)):
                                 # It is an Regex
                                 cleanregex = entry.strip('/')
-                                regexlist[regexcount,0] = str(id)
-                                regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
-                                regexlist[regexcount,2] = cleanregex
-                                regexcount += 1
+                                try:
+                                    regexlist[regexcount,1] = regex.compile(cleanregex, regex.I)
+                                    regexlist[regexcount,0] = str(id)
+                                    regexlist[regexcount,2] = cleanregex
+                                    regexcount += 1
+                                except:
+                                    log_err(tag + name + ': Skipped invalid line/regex \"' + entry + '\"')
+                                    pass
 
                             elif (ipregex.match(entry)):
                                 # It is an IP
                                 if checkresponse:
                                     if entry.find('/') == -1: # Check if Single IP or CIDR already
                                         if entry.find(':') == -1:
-                                            entry = entry + '/32' # Single IPv4 Address
+                                            cidr = entry + '/32' # Single IPv4 Address
                                         else:
-                                            entry = entry + '/128' # Single IPv6 Address
+                                            cidr = entry.lower() + '/128' # Single IPv6 Address
+                                    else:
+                                        cidr = entry.lower()
 
-                                    if entry:
-                                        ip = entry.lower()
-                                        if iplist.has_key(ip):
-                                            if iplist[ip].find(id) == -1:
-                                                oldid = iplist[ip].split('(')[1].split(')')[0].strip()
-                                                iplist[ip] = '\"' + ip + '\" (' + str(oldid) + ', ' + str(id) + ')'
+                                    if cidr:
+                                        if iplist.has_key(cidr):
+                                            if iplist[cidr].find(id) == -1:
+                                                oldid = iplist[cidr].split('(')[1].split(')')[0].strip()
+                                                iplist[cidr] = '\"' + cidr + '\" (' + str(oldid) + ', ' + str(id) + ')'
                                         else:
                                             try:
-                                                iplist[ip] = '\"' + ip + '\" (' + str(id) + ')'
+                                                iplist[cidr] = '\"' + cidr + '\" (' + str(id) + ')'
                                                 ipcount += 1
                                             except:
                                                 log_err(tag + name + ': Skipped invalid line/ip-address \"' + entry + '\"')
                                                 pass
 
-
                             elif (isdomain.match(entry)):
                                     # It is a domain
-                                    entry = entry.strip('.').lower()
+                                    domain = entry.strip('.').lower()
     
                                     # Strip 'www." if appropiate
-                                    if wwwregex.match(entry):
-                                        label = entry.split('.')[0]
-                                        if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + entry + '\"')
-                                        entry = '.'.join(entry.split('.')[1:])
+                                    if wwwregex.match(domain):
+                                        label = domain.split('.')[0]
+                                        if (debug >= 3): log_info(tag + 'Stripped \"' + label + '\" from \"' + domain + '\"')
+                                        domain = '.'.join(domain.split('.')[1:])
 
-                                    if entry:
+                                    if domain:
                                         if tldlist and not force:
-                                            tld = entry.split('.')[-1:][0]
+                                            tld = domain.split('.')[-1:][0]
                                             if not tld in tldlist:
-                                                if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + entry + '\", TLD (' + tld + ') does not exist')
-                                                entry = False
+                                                if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + domain + '\", TLD (' + tld + ') does not exist')
+                                                domain = False
                                                 
-                                        if entry:
-                                            if entry in domainlist:
-                                                if domainlist[entry].find(id) == -1:
-                                                    domainlist[entry] = domainlist[entry] + ', ' + id
+                                        if domain:
+                                            if domain in domainlist:
+                                                if domainlist[domain].find(id) == -1:
+                                                    domainlist[domain] = domainlist[domain] + ', ' + id
                                             else:
-                                                domainlist[entry] = id
+                                                domainlist[domain] = id
                                                 domaincount += 1
-
 
                             else:
                                 log_err(tag + name + ': Skipped invalid line \"' + entry + '\"')
