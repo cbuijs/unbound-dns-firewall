@@ -2,10 +2,9 @@
 /^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Regex-White
 /^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Regex-White
 /^(imap|pop|smtp)\.gmail\.com$/	Regex-White
-/^(?!fonts)\.googleapis\.com$/	Regex-White
+/^(.*\.)*((?!fonts).)*\.googleapis\.com$/	Regex-White
 /^(.*\.)*gvt[0-9]\.com$/	Regex-White
 /^(.*\.)*googleusercontent\.com$/	Regex-White
-/^(.*\.)*metric\.gstatic\.com$/	Regex-White
 /^(.*\.)*(apple|icloud|itunes)\.com$/	Regex-White
 /^(.*\.)*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/	Regex-White
 /^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/	Regex-White
@@ -379,7 +378,6 @@ portal.citidirect.com	Adguard-Banks
 citizen-times.com	FanBoy-Complete-White
 citizensbank.com	Adguard-Banks
 citizensbankonline.com	Adguard-Banks
-cityam.com	FanBoy-Complete-White
 clarionledger.com	FanBoy-Complete-White
 clashdaily.com	FanBoy-Complete-White
 classicalite.com	FanBoy-Complete-White
@@ -599,10 +597,6 @@ goldderby.com	FanBoy-Complete-White
 goldsday.com	FanBoy-Complete-White
 goodvideohost.com	FanBoy-Complete-White
 android.clients.google.com	Adguard-Android
-accountsettingsmobile-pa.googleapis.com	Adguard-Android
-androidpay-users-pa.googleapis.com	Adguard-Banks
-androidwearcloudsync-pa.googleapis.com	Adguard-Android
-trips-pa.googleapis.com	Adguard-Android
 googlecode.com	Chris-White
 googlecommerce.com	FanBoy-Complete-White
 googlevideo.com	Adguard-Android
