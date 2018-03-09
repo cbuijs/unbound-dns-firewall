@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.48-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.50-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -582,7 +582,7 @@ def load_lists(force, savelists):
                             elements = entry.split('\t')
                             if len(elements) > 1:
                                 name = elements[0].strip().upper()
-                                if (debug >= 2): log_info(tag + 'Fetching file-regex @' + name )
+                                if (debug >= 2): log_info(tag + 'Fetching file-regex \"@' + name + '\"')
                                 fileregex[name] = elements[1]
                             else:
                                 log_err(tag + 'Invalid list-regex entry: \"' + entry + '\"')
@@ -637,8 +637,8 @@ def load_lists(force, savelists):
                                     if r.startswith('@'):
                                         r = r.split('@')[1].upper().strip()
                                         if r in fileregex:
-                                            if (debug >=2): log_info(tag + 'Using @' + r + ' regex for \"' + id + '\"')
-                                            r = fileregex[r]
+                                            fregex = fileregex[r]
+                                            if (debug >=2): log_info(tag + 'Using \"@' + r + '\" regex/filter for \"' + id + '\" (' + fregex + ')')
                                         else:
                                             log_err(tag + 'Regex \"@' + r + '\" does not exist in \"' + fileregexlist + '\" using default \"' + defaultfregex +'\"')
                                     
@@ -656,23 +656,24 @@ def load_lists(force, savelists):
     
                                 age = file_exist(file)
                                 if not age or age > filettl or force:
-                                    log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '\"')
+                                    log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '.download\"')
                                     r = requests.get(url, headers=headers, allow_redirects=True)
                                     if r.status_code == 200:
                                         try:
                                             with open(file + '.download', 'w') as f:
-                                                f.write(r.text.encode('ascii', 'ignore').replace('\r', ''))
+                                                f.write(r.text.encode('ascii', 'ignore').replace('\r', '').strip().lower())
 
                                             try:
+                                                log_info(tag + 'Creating \"' + id + '\" file \"' + file + '\" from \"' + file + '.download\"')
                                                 with open(file + '.download', 'r') as f:
                                                     try:
                                                         with open(file, 'w') as g:
                                                             seen = set()
                                                             for line in f:
-                                                                matchentry = regex.match(fregex, line)
+                                                                matchentry = regex.match(fregex, line, regex.I)
                                                                 if matchentry:
-                                                                    entry = matchentry.group('entry').lower().strip()
-                                                                    if entry and len(entry) > 0 and not entry in seen:
+                                                                    entry = matchentry.group('entry')
+                                                                    if entry and not entry in seen:
                                                                         g.write(entry)
                                                                         g.write('\n')
                                                                         seen.add(entry)
