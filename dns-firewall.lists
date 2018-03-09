@@ -102,7 +102,7 @@ Zonefiles-Malware-IP	black	https://zonefiles.io/f/compromised/ip/live/	/etc/unbo
 MalwareDomainList	black	http://www.malwaredomainlist.com/hostslist/hosts.txt	/etc/unbound/malwaredomain.list	86400	@HOST127
 
 MailwareDomains	black	https://mirror1.malwaredomains.com/files/justdomains	/etc/unbound/malwaredomains.list	86400	@DOMAIN
-Bulk-Registars	black	http://mirror1.malwaredomains.com/files/bulk_registrars.txt	/etc/unbound/bulk-registars.list	86400	@DOMAIN
+Bulk-Registars	black	http://mirror1.malwaredomains.com/files/bulk_registrars.txt	/etc/unbound/bulk-registars.list	86400	@DOMAIN-WILDCARD
 Immortal-Malware	black	http://mirror1.malwaredomains.com/files/immortal_domains.txt	/etc/unbound/immortal-domains.list	86400	@DOMAIN
 Skype-Resolvers	black	http://mirror1.malwaredomains.com/files/Skype-resolvers.txt	/etc/unbound/skype-resolvers.list	86400	@DOMAIN
 Free-WebHosts	black	http://mirror1.malwaredomains.com/files/freewebhosts.txt	/etc/unbound/freewebhosts.list	86400	@DOMAIN
