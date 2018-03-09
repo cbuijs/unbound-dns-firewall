@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.40-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.45-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -134,6 +134,10 @@ savelists = True
 blacksave = '/etc/unbound/blacklist.save'
 whitesave = '/etc/unbound/whitelist.save'
 
+# regexlist
+fileregex = dict()
+fileregexlist = '/etc/unbound/listregexes'
+
 # TLD file
 #tldfile = False
 tldfile = '/etc/unbound/tlds.list'
@@ -195,6 +199,9 @@ maxlistage = 43200 # In seconds
 # The higher levels include the lower level informations
 debug = 2
 
+# Default file regex
+defaultfregex = '^(?P<entry>[a-zA-Z0-9\.\-\_]+)$'
+
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
 ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
 
@@ -208,7 +215,8 @@ isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus under
 # Regex for excluded entries to fix issues
 #exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 #exclude = regex.compile('^(fastly.net|googl(e|eapi[s]*|evideo)\.com|site)$', regex.I)
-exclude = regex.compile('^(127\.0\.0\.1|::1|local(host|net[s]*))$', regex.I)
+defaultexclude = '^(127\.0\.0\.1|::1|local(host|net[s]*))$'
+exclude = regex.compile(defaultexclude, regex.I)
 
 # Regex for www entries
 wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
@@ -564,6 +572,25 @@ def load_lists(force, savelists):
     #    if intercept_host:
     #        tldlist[intercept_host.strip('.').split('.')[-1:][0]] = True
 
+    if fileregexlist:
+            log_info(tag + 'Fetching list-regexes from \"' + fileregexlist + '\"')
+            try:
+                with open(fileregexlist, 'r') as f:
+                    for line in f:
+                        entry = line.strip()
+                        if not (entry.startswith("#")) and not (len(entry) == 0):
+                            elements = entry.split('\t')
+                            if len(elements) > 1:
+                                name = elements[0].strip().upper()
+                                if (debug >= 2): log_info(tag + 'Fetching file-regex @' + name )
+                                fileregex[name] = elements[1]
+                            else:
+                                log_err(tag + 'Invalid list-regex entry: \"' + entry + '\"')
+
+            except IOError:
+                log_err(tag + 'Unable to read from file \"' + fileregexlist + '\"')
+                tldfile = False
+
     # Read Lists
     readblack = True
     readwhite = True
@@ -604,10 +631,18 @@ def load_lists(force, savelists):
                                 else:
                                     filettl = maxlistage
     
-                                fregex = '^(?P<entry>[a-zA-Z0-9\.\-\_]+)$'
+                                fregex = defaultfregex
                                 if len(element) > 5:
                                     r = element[5]
-                                    if r.find('(?P<entry>') == -1:
+                                    if r.startswith('@'):
+                                        r = r.split('@')[1].upper().strip()
+                                        if r in fileregex:
+                                            if (debug >=2): log_info(tag + 'Using @' + r + ' regex for \"' + id + '\"')
+                                            r = fileregex[r]
+                                        else:
+                                            log_err(tag + 'Regex \"@' + r + '\" does not exist in \"' + fileregexlist + '\" using default \"' + defaultfregex +'\"')
+                                    
+                                    elif r.find('(?P<entry>') == -1:
                                         log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
                                     else:
                                         fregex = r
@@ -615,7 +650,7 @@ def load_lists(force, savelists):
                                 if len(element) > 6:
                                     exclude = regex.compile(element[6], regex.I)
                                 else:
-                                    exclude = regex.compile('^(127\.0\.0\.1|::1|localhost)$', regex.I)
+                                    exclude = regex.compile(defaultexclude, regex.I)
     
                                 fexists = False
     
@@ -747,6 +782,8 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                 regexcount = orgregexcount
                 ipcount = 0
                 domaincount = 0
+                skipped = 0
+                total = 0
 
                 for line in f:
                     entry = line.split('#')[0].strip().replace('\r', '')
@@ -759,6 +796,7 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                                 id = elements[1]
 
                         if not (exclude.match(entry)):
+                            total += 1
                             if (isregex.match(entry)):
                                 # It is an Regex
                                 cleanregex = entry.strip('/')
@@ -787,6 +825,7 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                                             if iplist[cidr].find(id) == -1:
                                                 oldid = iplist[cidr].split('(')[1].split(')')[0].strip()
                                                 iplist[cidr] = '\"' + cidr + '\" (' + str(oldid) + ', ' + str(id) + ')'
+                                                skipped += 1
                                         else:
                                             try:
                                                 iplist[cidr] = '\"' + cidr + '\" (' + str(id) + ')'
@@ -816,17 +855,23 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                                             if domain in domainlist:
                                                 if domainlist[domain].find(id) == -1:
                                                     domainlist[domain] = domainlist[domain] + ', ' + id
+
+                                                skipped += 1
+
                                             else:
                                                 domainlist[domain] = id
                                                 domaincount += 1
 
                             else:
                                 log_err(tag + name + ': Skipped invalid line \"' + entry + '\"')
+                                skipped += 1
 
                         else:
                             if (debug >= 1): log_info(tag + name + ': Skipped/Excluded line \"' + entry + '\"')
+                            skipped += 1
 
 
+                if (debug >= 2): log_info(tag + 'Processed ' + str(total) + ' entries and skipped (existing/invalid) ' + str(skipped) + ' ones')
                 if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from ' + bw + '-file/list \"' + name + '\"')
                 if (debug >= 2): log_info(tag + 'Total ' + str(len(regexlist)/3) + ' REGEXES, ' + str(len(iplist)) + ' CIDRS and ' + str(len(domainlist)) + ' DOMAINS in ' + bw + '-list')
 
