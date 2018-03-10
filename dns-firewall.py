@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.50-20180309 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.51-20180310 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -54,6 +54,7 @@ TODO:
 
 - !!! Better Documentation / Remarks / Comments
 - !!! Simplification of IPv4/IPv6 lists and get rid of consolidated list
+- !!! Skip filtering based on client-ip, watch cache.0
 
 =========================================================================================
 '''
@@ -1633,6 +1634,7 @@ def operate(id, event, qstate, qdata):
                 # Check if blacklisted, if so process and block
                 if not in_list(qname, 'black', 'QUERY', qtype):
                     dummy = 0
+#                    # !!! Move below SafeDNS piece in it's own def/sub and re-use for responses
 #                    # Use SafeDNS to determine if a domain is bad
 #                    if safedns and qtype == 'A':
 #                        type, ns, domain = get_ns(nameservers, 'DEFAULT')
@@ -1735,6 +1737,7 @@ def operate(id, event, qstate, qdata):
                 if (rc == RCODE_NOERROR) or (rep.an_numrrsets > 0):
                     # Initialize base variables
                     name = False
+                    dname = False
                     blockit = False
 
                     # Get query-name and type and see if it is in cache already
@@ -1743,154 +1746,157 @@ def operate(id, event, qstate, qdata):
                         qtype = qstate.qinfo.qtype_str.upper()
                         if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
-                        # Pre-set some variables for cname collapsing
-                        if collapse:
-                            firstname = False
-                            firstttl = False
-                            firsttype = False
-                            lastname = dict()
+                        # If query was already whitelisted, bail.
+                        if not in_cache('white', qname):
+                            if not in_cache('black', qname):
+                                # Pre-set some variables for cname collapsing
+                                if collapse:
+                                    firstname = False
+                                    firstttl = False
+                                    firsttype = False
+                                    lastname = dict()
 
-                        # Loop through RRSets
-                        for i in range(0,rep.an_numrrsets):
-                            rk = rep.rrsets[i].rk
-                            type = rk.type_str.upper()
-                            dname = rk.dname_str.rstrip('.').lower()
+                                # Loop through RRSets
+                                for i in range(0,rep.an_numrrsets):
+                                    rk = rep.rrsets[i].rk
+                                    type = rk.type_str.upper()
+                                    dname = rk.dname_str.rstrip('.').lower()
 
-                            if collapse and i == 0 and type == 'CNAME':
-                                firstname = dname
-                                firstttl = rep.ttl
-                                firsttype = type
+                                    if collapse and i == 0 and type == 'CNAME':
+                                        firstname = dname
+                                        firstttl = rep.ttl
+                                        firsttype = type
 
-                            # Start checking if black/whitelisted
-                            if dname:
-                                if not in_list(dname, 'white', 'RESPONSE', type):
-                                    if not in_list(dname, 'black', 'RESPONSE', type):
+                                    # Start checking if black/whitelisted
+                                    if dname:
+                                        if not in_list(dname, 'white', 'RESPONSE', type):
+                                            if not in_list(dname, 'black', 'RESPONSE', type):
 
-                                        # Not listed yet, lets get data
-                                        data = rep.rrsets[i].entry.data
+                                                # Not listed yet, lets get data
+                                                data = rep.rrsets[i].entry.data
 
-                                        # Loop through data records
-                                        for j in range(0,data.count):
+                                                # Loop through data records
+                                                for j in range(0,data.count):
 
-                                            # get answer section
-                                            answer = data.rr_data[j]
+                                                    # get answer section
+                                                    answer = data.rr_data[j]
 
-                                            # Check if supported ype to record-type
-                                            if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
-                                                # Fetch Address or Name based on record-Type
-                                                if type == 'A':
-                                                    name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
-                                                elif type == 'AAAA':
-                                                    name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
-                                                elif type in ('CNAME', 'NS'):
-                                                    name = decode_data(answer,0)
-                                                elif type == 'MX':
-                                                    name = decode_data(answer,1)
-                                                elif type == 'PTR':
-                                                    name = decode_data(answer,0)
-                                                elif type == 'SOA':
-                                                    name = decode_data(answer,0).split(' ')[0][0].strip('.')
-                                                elif type == 'SRV':
-                                                    name = decode_data(answer,5)
-                                                else:
-                                                    # Not supported
-                                                    name = False
+                                                    # Check if supported ype to record-type
+                                                    if type in ('A', 'AAAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV'):
+                                                        # Fetch Address or Name based on record-Type
+                                                        if type == 'A':
+                                                            name = "%d.%d.%d.%d"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]))
+                                                        elif type == 'AAAA':
+                                                            name = "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"%(ord(answer[2]),ord(answer[3]),ord(answer[4]),ord(answer[5]),ord(answer[6]),ord(answer[7]),ord(answer[8]),ord(answer[9]),ord(answer[10]),ord(answer[11]),ord(answer[12]),ord(answer[13]),ord(answer[14]),ord(answer[15]),ord(answer[16]),ord(answer[17]))
+                                                        elif type in ('CNAME', 'NS'):
+                                                            name = decode_data(answer,0)
+                                                        elif type == 'MX':
+                                                            name = decode_data(answer,1)
+                                                        elif type == 'PTR':
+                                                            name = decode_data(answer,0)
+                                                        elif type == 'SOA':
+                                                            name = decode_data(answer,0).split(' ')[0][0].strip('.')
+                                                        elif type == 'SRV':
+                                                            name = decode_data(answer,5)
+                                                        else:
+                                                            # Not supported
+                                                            name = False
 
-                                                # If we have a name, process it
-                                                if name:
-                                                    if collapse and firstname and type in ('A', 'AAAA'):
-                                                        lastname[name] = type
+                                                        # If we have a name, process it
+                                                        if name:
+                                                            if collapse and firstname and type in ('A', 'AAAA'):
+                                                                lastname[name] = type
 
-                                                    if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ') (TTL:' + str(rep.ttl) + ')')
+                                                            if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ') (TTL:' + str(rep.ttl) + ')')
 
-                                                    # Not Whitelisted?
-                                                    if not in_list(name, 'white', 'RESPONSE', type):
-                                                        # Blacklisted?
-                                                        if in_list(name, 'black', 'RESPONSE', type):
-                                                            blockit = True
-                                                            break
+                                                            # Not Whitelisted?
+                                                            if not in_list(name, 'white', 'RESPONSE', type):
+                                                                # Blacklisted?
+                                                                if in_list(name, 'black', 'RESPONSE', type):
+                                                                    blockit = True
+                                                                    break
 
-                                                    #else:
-                                                        # Already whitelisted, lets abort processing and passthru
-                                                    #    blockit = False
-                                                    #    break
+                                                            #else:
+                                                                # Already whitelisted, lets abort processing and passthru
+                                                            #    blockit = False
+                                                            #    break
+
+                                                    else:
+                                                        # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
+                                                        if (debug >=2): log_info(tag + 'Ignoring RR-type ' + type)
+                                                        blockit = False
+                                                        break
 
                                             else:
-                                                # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
-                                                if (debug >=2): log_info(tag + 'Ignoring RR-type ' + type)
-                                                blockit = False
+                                                # dname Response Blacklisted
+                                                blockit = True
                                                 break
 
+                                        else:
+                                            # dname Response Whitelisted
+                                            blockit = False
+                                            break
+
                                     else:
-                                        # dname Response Blacklisted
-                                        blockit = True
+                                        # Nothing to process
+                                        blockit = False
                                         break
 
-                                else:
-                                    # dname Response Whitelisted
-                                    blockit = False
-                                    break
-
                             else:
-                                # Nothing to process
-                                blockit = False
-                                break
-
+                                # qname in black cache
+                                blockit = True
+    
+                            # Block it and generate response accordingly, otther wise DNS resolution continues as normal
                             if blockit:
-                                # if we found something to block, abort loop and start blocking
-                                break
+                                if name and dname:
+                                    # Block based on response
+                                    rname = name
+                                    lname = dname + " -> " + name
+                                    rtype = type
 
-                        # Block it and generate response accordingly, otther wise DNS resolution continues as normal
-                        if blockit:
-                            if name:
-                                # Block based on response
-                                rname = name
-                                lname = dname + " -> " + name
-                                rtype = type
-
-                                # Add query-name to black-cache
-                                if not in_cache('black', qname):
-                                    add_to_cache('black', qname)
+                                    # Add query-name to black-cache
+                                    if not in_cache('black', qname):
+                                        add_to_cache('black', qname)
  
-                            else:
-                                # Block based on query
-                                rname = qname
-                                lname = qname
-                                rtype = qtype
+                                else:
+                                    # Block based on query
+                                    rname = qname
+                                    lname = qname
+                                    rtype = qtype
 
-                            # Add response-name to the black-cache
-                            if not in_cache('black', rname):
-                                add_to_cache('black', rname)
+                                # Add response-name to the black-cache
+                                if not in_cache('black', rname):
+                                    add_to_cache('black', rname)
 
-                            # Generate response based on query-name
-                            target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
-                            if target:
-                                if (debug >= 1): log_info(tag + 'REDIRECTED \"' + lname + '\" (RR:' + rtype + ') to ' + target)
+                                # Generate response based on query-name
+                                target = generate_response(qstate, qname, qtype, qstate.qinfo.qtype)
+                                if target:
+                                    if (debug >= 1): log_info(tag + 'REDIRECTED \"' + lname + '\" (RR:' + rtype + ') to ' + target)
+                                    qstate.return_rcode = RCODE_NOERROR
+                                else:
+                                    if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
+                                    qstate.return_rcode = RCODE_REFUSED
+
+                            elif collapse and lastname:
+                                rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
+                                for lname in lastname.keys():
+                                    if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> ' + lastname[lname] + ' \"' + lname + '\"')
+                                    rmsg.answer.append('%s %d IN %s %s' % (firstname, firstttl, lastname[lname], lname))
+
+                                rmsg.set_return_msg(qstate)
+                                if not rmsg.set_return_msg(qstate):
+                                    log_err(tag + 'CNAME COLLAPSE ERROR: ' + str(rmsg.answer))
+                                    return False
+
+                                if qstate.return_msg.qinfo:
+                                    invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
+
+                                qstate.no_cache_store = 0
+                                storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 0)
+
+                                qstate.return_msg.rep.security = 2
+
                                 qstate.return_rcode = RCODE_NOERROR
-                            else:
-                                if (debug >= 1): log_info(tag + 'REFUSED \"' + lname + '\" (RR:' + rtype + ')')
-                                qstate.return_rcode = RCODE_REFUSED
-
-                        elif collapse and lastname:
-                            rmsg = DNSMessage(firstname, RR_TYPE_A, RR_CLASS_IN, PKT_QR | PKT_RA )
-                            for lname in lastname.keys():
-                                if (debug >= 2): log_info (tag + 'COLLAPSE CNAME \"' + firstname + '\" -> ' + lastname[lname] + ' \"' + lname + '\"')
-                                rmsg.answer.append('%s %d IN %s %s' % (firstname, firstttl, lastname[lname], lname))
-
-                            rmsg.set_return_msg(qstate)
-                            if not rmsg.set_return_msg(qstate):
-                                log_err(tag + 'CNAME COLLAPSE ERROR: ' + str(rmsg.answer))
-                                return False
-
-                            if qstate.return_msg.qinfo:
-                                invalidateQueryInCache(qstate, qstate.return_msg.qinfo)
-
-                            qstate.no_cache_store = 0
-                            storeQueryInCache(qstate, qstate.return_msg.qinfo, qstate.return_msg.rep, 0)
-
-                            qstate.return_msg.rep.security = 2
-
-                            qstate.return_rcode = RCODE_NOERROR
 
                         if (debug >= 2): log_info(tag + 'Finished on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
