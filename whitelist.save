@@ -1,15 +1,15 @@
 ### WHITELIST REGEXES ###
-/^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Regex-White
-/^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Regex-White
-/^(imap|pop|smtp)\.gmail\.com$/	Regex-White
-/^(.*\.)*((?!fonts).)*\.googleapis\.com$/	Regex-White
-/^(.*\.)*gvt[0-9]\.com$/	Regex-White
-/^(.*\.)*googleusercontent\.com$/	Regex-White
-/^(.*\.)*(apple|icloud|itunes)\.com$/	Regex-White
-/^(.*\.)*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/	Regex-White
-/^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/	Regex-White
-/^(.*\.)*itunes(essentials|festivals|match|su)\.com$/	Regex-White
-/^account\..*$/	Regex-White
+/^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Chris-Regex-White
+/^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Chris-Regex-White
+/^(imap|pop|smtp)\.gmail\.com$/	Chris-Regex-White
+/^(.*\.)*((?!font[s]*).)*\.googleapis\.com$/	Chris-Regex-White
+/^(.*\.)*gvt[0-9]\.com$/	Chris-Regex-White
+/^(.*\.)*googleusercontent\.com$/	Chris-Regex-White
+/^(.*\.)*(apple|icloud|itunes)\.com$/	Chris-Regex-White
+/^(.*\.)*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/	Chris-Regex-White
+/^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/	Chris-Regex-White
+/^(.*\.)*itunes(essentials|festivals|match|su)\.com$/	Chris-Regex-White
+/^account\..*$/	Chris-Regex-White
 ### WHITELIST DOMAINS ###
 city1016.ae	FanBoy-Complete-White
 leech.ae	FanBoy-Complete-White
@@ -34,6 +34,7 @@ nachrichten.at	FanBoy-Complete-White
 banking.raiffeisen.at	Adguard-Banks
 sparkasse.at	Adguard-Banks
 arnnet.com.au	FanBoy-Complete-White
+banksa.com.au	Adguard-Banks
 online.beyondbank.com.au	Adguard-Banks
 cio.com.au	FanBoy-Complete-White
 cmo.com.au	FanBoy-Complete-White
@@ -3023,7 +3024,6 @@ fas.li	EasyList-French-White, FanBoy-Complete-White
 llb.li	Adguard-Banks
 uploadx.link	EasyList-French-White
 sports4u.live	FanBoy-Complete-White
-local	Chris-White
 ebankas.danskebank.lt	Adguard-Banks
 ibank.lt	Adguard-Banks
 margevicius.lt	Chris-White
@@ -3266,6 +3266,7 @@ slender.news	FanBoy-Complete-White
 stupid.news	FanBoy-Complete-White
 twisted.news	FanBoy-Complete-White
 abnamro.nl	Adguard-Banks
+ad.nl	Chris-White
 alfaforum.nl	EasyList-Dutch-White
 bankofscotland.nl	Adguard-Banks
 calorielijst.nl	EasyList-Dutch-White
