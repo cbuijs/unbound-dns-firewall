@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.51-20180310 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.60-20180319 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -185,7 +185,7 @@ autoreverse = True
 blockv6 = True
 
 # CNAME Collapsing (note: whitelisted entries are not collapsed)
-collapse = True
+collapse = False
 
 # Allow RFC 2606 TLD's
 rfc2606 = False
@@ -201,7 +201,8 @@ maxlistage = 43200 # In seconds
 debug = 2
 
 # Default file regex
-defaultfregex = '^(?P<entry>[a-zA-Z0-9\.\-\_]+)$'
+#defaultfregex = '^(?P<entry>[a-zA-Z0-9\.\-\_]+)$'
+defaultfregex = '^(?P<entry>.*)$'
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
 ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
@@ -441,9 +442,8 @@ def clear_lists():
     for i in cblacklist.keys():
         cblacklist.delete(i)
 
-    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', True)
-    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', True)
-
+    cwhitelist, cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', True)
+    cblacklist, cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', True)
 
     clear_cache()
 
@@ -533,7 +533,7 @@ def load_lists(force, savelists):
                     with open(tldfile, 'w') as f:
                         f.write(r.text.encode('ascii', 'ignore').replace('\r', '').lower())
 
-                except IOError:
+                except:
                     log_err(tag + 'Unable to write to file \"' + tldfile + '\"')
                     tldfile = False
 
@@ -546,7 +546,7 @@ def load_lists(force, savelists):
                         if not (entry.startswith("#")) and not (len(entry) == 0):
                             tldlist[entry] = True
 
-            except IOError:
+            except:
                 log_err(tag + 'Unable to read from file \"' + tldfile + '\"')
                 tldfile = False
 
@@ -588,7 +588,7 @@ def load_lists(force, savelists):
                             else:
                                 log_err(tag + 'Invalid list-regex entry: \"' + entry + '\"')
 
-            except IOError:
+            except:
                 log_err(tag + 'Unable to read from file \"' + fileregexlist + '\"')
                 tldfile = False
 
@@ -618,14 +618,23 @@ def load_lists(force, savelists):
                         id = element[0]
                         bw = element[1].lower()
                         if (bw == 'black' and readblack) or (bw == 'white' and readwhite) or (bw == 'exclude' and (readwhite or readblack)):
-                            file = element[2]
+                            source = element[2]
+                            downloadfile = False
+                            listfile = False
                             force = False
-                            if (file.find('http://') == 0) or (file.find('https://') == 0):
-                                url = file
+                            url = False
+
+                            if source.startswith('http://') or source.startswith('https://'):
+                                url = source
+                                if (debug >= 2): log_info(tag + 'Source for \"' + id + '\" is an URL: \"' + url + '\"')
+                            else:
+                                if (debug >= 2): log_info(tag + 'Source for \"' + id + '\" is a FILE: \"' + source + '\"')
+                                
+                            if source:
                                 if len(element) > 3:
-                                    file = element[3]
+                                    listfile = element[3]
                                 else:
-                                    file = '/etc/unbound/' + id.strip('.').lower() + ".list"
+                                    listfile = '/etc/unbound/' + id.strip('.').lower() + ".list"
     
                                 if len(element) > 4:
                                     filettl = int(element[4])
@@ -652,103 +661,122 @@ def load_lists(force, savelists):
                                     exclude = regex.compile(element[6], regex.I)
                                 else:
                                     exclude = regex.compile(defaultexclude, regex.I)
-    
-                                fexists = False
-    
-                                age = file_exist(file)
-                                if not age or age > filettl or force:
-                                    log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + file + '.download\"')
-                                    r = requests.get(url, headers=headers, allow_redirects=True)
-                                    if r.status_code == 200:
+
+                                if url:
+                                    age = file_exist(listfile)
+                                    if not age or age > filettl or force:
+                                        downloadfile = listfile + '.download'
+                                        log_info(tag + 'Downloading \"' + id + '\" from \"' + url + '\" to \"' + downloadfile + '\"')
                                         try:
-                                            with open(file + '.download', 'w') as f:
-                                                f.write(r.text.encode('ascii', 'ignore').replace('\r', '').strip().lower())
+                                            r = requests.get(url, headers=headers, allow_redirects=True)
+                                            if r.status_code == 200:
+                                                try:
+                                                    with open(downloadfile, 'w') as f:
+                                                        f.write(r.text.encode('ascii', 'ignore').replace('\r', '').strip().lower())
 
-                                            try:
-                                                log_info(tag + 'Creating \"' + id + '\" file \"' + file + '\" from \"' + file + '.download\"')
-                                                with open(file + '.download', 'r') as f:
-                                                    try:
-                                                        with open(file, 'w') as g:
-                                                            seen = set()
-                                                            for line in f:
-                                                                matchentry = regex.match(fregex, line, regex.I)
-                                                                if matchentry:
-                                                                    entry = matchentry.group('entry')
-                                                                    if entry and not entry in seen:
-                                                                        g.write(entry)
-                                                                        g.write('\n')
-                                                                        seen.add(entry)
+                                                except:
+                                                    log_err(tag + 'Unable to write to file \"' + downloadfile + '\"')
 
-                                                    except IOError:
-                                                        log_err(tag + 'Unable to write to file \"' + file + '\"')
+                                            else:
+                                                log_err(tag + 'Error during downloading from \"' + url + '\"')
 
-                                            except IOError:
-                                                log_err(tag + 'Unable to open file \"' + file + '.download\"')
-
-                                        except IOError:
-                                            log_err(tag + 'Unable to write to file \"' + file + '.download\"')
+                                        except:
+                                            log_err(tag + 'Error downloading from \"' + url + '\"')
 
                                     else:
-                                        log_err(tag + 'Unable to download from \"' + url + '\"')
+                                        log_info(tag + 'Skipped download \"' + id + '\" previous list \"' + listfile + '\" is only ' + str(age) + ' seconds old')
+
+                                if url and downloadfile:
+                                    sourcefile = downloadfile
+                                else:
+                                    sourcefile = source
+
+                                if file_exist(sourcefile) >= 0:
+                                    if sourcefile != listfile:
+                                        try:
+                                            log_info(tag + 'Creating \"' + id + '\" file \"' + listfile + '\" from \"' + sourcefile + '\"')
+                                            with open(sourcefile, 'r') as f:
+                                                try:
+                                                    with open(listfile, 'w') as g:
+                                                        for line in f:
+                                                            matchentry = regex.match(fregex, line, regex.I)
+                                                            if matchentry:
+                                                                entry = matchentry.group('entry') #.replace('\r', '')
+                                                                if entry:
+                                                                    g.write(entry)
+                                                                    g.write('\n')
+
+                                                except BaseException as err:
+                                                    log_err(tag + 'Unable to write to file \"' + listfile + '\" (' + str(err) + ')')
+
+                                        except BaseException as err:
+                                            log_err(tag + 'Unable to read source-file \"' + sourcefile + '\" (' + str(err) + ')')
+
+                                    else:
+                                        log_info(tag + 'Skipped processing of \"' + id + '\", source-file \"' + sourcefile + '\" same as list-file')
 
                                 else:
-                                    log_info(tag + 'Skipped download \"' + id + '\" previous downloaded file \"' + file + '\" is ' + str(age) + ' seconds old')
+                                    log_info(tag + 'Skipped \"' + id + '\", source-file \"' + sourcefile + '\" does not exist')
+
+
+                            if file_exist(listfile) >= 0:
+                                if bw == 'black':
+                                    read_lists(id, listfile, rblacklist, cblacklist, blacklist, force, bw)
+                                elif bw == 'white':
+                                    if not disablewhitelist:
+                                        read_lists(id, listfile, rwhitelist, cwhitelist, whitelist, force, bw)
+                                elif bw == 'exclude':
+                                    excount = 0
+                                    try:
+                                        with open(listfile, 'r') as f:
+                                            for line in f:
+                                                entry = line.strip().replace('\r', '')
+                                                if (len(entry) > 0) and isdomain.match(entry):
+                                                    excludelist[entry] = id
+                                                    excount += 1
+
+                                        log_info(tag + 'Fetched ' + str(excount) + ' exclude entries from \"' + listfile + '\" (' + id + ')')
+
+                                    except:
+                                        log_err(tag + 'Unable to read list-file \"' + listfile + '\"')
+
+                                else:
+                                    log_err(tag + 'Unknow type \"' + bw + '\" for file \"' + listfile + '\"')
                             else:
-                                force = True # Always load when file on disk
-
-                            if bw == 'black':
-                                read_lists(id, file, rblacklist, cblacklist, blacklist, force, bw)
-                            elif bw == 'white':
-                                if not disablewhitelist:
-                                    read_lists(id, file, rwhitelist, cwhitelist, whitelist, force, bw)
-                            elif bw == 'exclude':
-                                excount = 0
-                                try:
-                                    with open(file, 'r') as f:
-                                        for line in f:
-                                            entry = line.strip().replace('\r', '')
-                                            if (len(entry) > 0) and isdomain.match(entry):
-                                                excludelist[entry] = id
-                                                excount += 1
-
-                                    log_info(tag + 'Fetched ' + str(excount) + ' exclude entries from \"' + file + '\" (' + id + ')')
-
-                                except IOError:
-                                    log_err(tag + 'Unable to open file \"' + file + '\"')
-                            else:
-                                log_err(tag + 'Unknow type \"' + bw + '\" for file \"' + file + '\"')
+                                log_err(tag + 'Cannot open \"' + listfile + '\"')
                         else:
                             log_info(tag + 'Skipping ' + bw + 'list \"' + id + '\", using savelist')
                     else:
                         log_err(tag + 'Not enough arguments: \"' + entry + '\"')
 
-    except IOError:
-        log_err(tag + 'Unable to open file ' + lists)
+    except:
+        log_err(tag + 'Unable to open file \"' + lists + '\"')
 
     # Redirect entry, we don't want to expose it
     blacklist[intercept_host.strip('.')] = 'Intercept_Host'
 
-    # Excluding domains
-    if excludelist and readblack and readwhite:
-        optimize_domlists('exclude', 'ExcludeDoms')
-        blacklist = exclude_list(blacklist, 'BlackDoms')
-        whitelist = exclude_list(whitelist, 'WhiteDoms')
+    # Excluding domains, first thing to do on "dirty" lists
+    if excludelist and (readblack or readwhite):
+        excludelist = optimize_domlists(excludelist, 'ExcludeDoms')
+        whitelist = exclude_list(whitelist, excludelist, 'WhiteDoms')
+        blacklist = exclude_list(blacklist, excludelist, 'BlackDoms')
 
     # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
-    if readblack:
-        optimize_domlists('white', 'WhiteDoms')
-        unreg_lists('white', 'WhiteDoms')
-
     if readwhite:
-        optimize_domlists('black', 'BlackDoms')
-        unreg_lists('black', 'BlackDoms')
+        whitelist = optimize_domlists(whitelist, 'WhiteDoms')
+        whitelist = unreg_lists(whitelist, rwhitelist, 'WhiteDoms')
+
+    if readblack:
+        blacklist = optimize_domlists(blacklist, 'BlackDoms')
+        blacklist = unreg_lists(blacklist, rblacklist, 'BlackDoms')
+
+    cwhitelist, cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', readwhite)
+    cblacklist, cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', readblack)
 
     if readblack or readwhite:
         # Remove whitelisted entries from blacklist
-        uncomplicate_lists()
-
-    cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', readwhite)
-    cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', readblack)
+        blacklist = uncomplicate_lists(whitelist, rwhitelist, blacklist)
+        cblacklist = uncomplicate_ip_lists(cwhitelist, cblacklist)
 
     regexcount = str(len(rblacklist)/3)
     ipcount = str (len(cblacklist))
@@ -880,8 +908,8 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
 
                 return True
 
-        except IOError:
-            log_err(tag + 'Unable to open file ' + name)
+        except:
+            log_err(tag + 'Unable to open file \"' + name + '\"')
 
     return False
 
@@ -955,32 +983,20 @@ def generate_response(qstate, rname, rtype, rrtype):
 
 
 # Domain aggregator, removes subdomains if parent exists
-def optimize_domlists(bw, listname):
+def optimize_domlists(name, listname):
     tag = 'DNS-FIREWALL LISTS: '
 
-    global blacklist
-    global whitelist
-    global excludelist
-
     log_info(tag + 'Unduplicating/Optimizing \"' + listname + '\"')
-
-    # Get all keys (=domains) into a sorted/uniqued list
-    if (bw == 'black'):
-	name = blacklist
-    elif (bw == 'white'):
-        name = whitelist
-    elif (bw == 'exclude'):
-        name = excludelist
 
     domlist = dom_sort(name.keys())
 
     # Remove all subdomains
-    parent = False
+    parent = '.invalid'
     undupped = set()
     for domain in domlist:
-        if not parent or not domain.endswith(parent):
+        if not domain.endswith(parent):
             undupped.add(domain)
-            parent = '.' + domain.lstrip('.')
+            parent = '.' + domain.strip('.')
         else:
             if (debug >= 3): log_info(tag + '\"' + listname + '\": Removed domain \"' + domain + '\" redundant by parent \"' + parent.strip('.') + '\"')
 
@@ -996,28 +1012,14 @@ def optimize_domlists(bw, listname):
     after = len(new)
     count = after - before
 
-    if (bw == 'black'):
-        blacklist = new
-    elif (bw == 'white'):
-        whitelist = new
-    elif (bw == 'exclude'):
-        excludelist = new
-
     if (debug >= 2): log_info(tag + '\"' + listname + '\": Number of domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
-    if (count > 0):
-        return True
-
-    return False
+    return new
 
 
 # Uncomplicate lists, removed whitelisted domains from blacklist
-def uncomplicate_lists():
+def uncomplicate_lists(whitelist, rwhitelist, blacklist):
     tag = 'DNS-FIREWALL LISTS: '
-
-    global blacklist
-    global whitelist
-    global rwhitelist
 
     log_info(tag + 'Uncomplicating Domain black/whitelists')
 
@@ -1064,19 +1066,13 @@ def uncomplicate_lists():
     after = len(new)
     count = after - before
 
-    blacklist = new
-
     if (debug >= 2): log_info(tag + 'Number of blacklisted domains went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
-    uncomplicate_ip_lists()
-
-    return True
+    return new
 
 
 # Remove excluded entries from domain-lists
-def exclude_list(domlist, listname):
-    global excludelist
-
+def exclude_list(domlist, excludelist, listname):
     tag = 'DNS-FIREWALL LISTS: '
 
     log_info( tag + 'Excluding \"' + listname + '\"')
@@ -1088,7 +1084,8 @@ def exclude_list(domlist, listname):
     for domain in dom_sort(excludelist.keys()):
         # Just the domain
         if domain in newlist:
-            lname = newlist.pop(domain, None)
+            lname = newlist[domain]
+            del newlist[domain]
             if (debug > 1): log_info(tag + 'Removed excluded entry \"' + domain + '\" from \"' + listname + '\" (' + lname + ')')
             checklist = '#'.join(newlist.keys()) + '#'
             deleted += 1
@@ -1096,7 +1093,7 @@ def exclude_list(domlist, listname):
         # All domains ending in excluded domain (Breaks too much, leave commented out)
         #if '.' + domain + "#" in checklist:
         #    for found in filter(lambda x: x.endswith('.' + domain), domlist.keys()):
-        #        lname = newlist.pop(found, None)
+        #        lname = newlist.pop(found, False)
         #        if (debug > 1): log_info(tag + 'Removed excluded entry \"' + found + '\" (' + domain + ') from \"' + listname + '\" (' + lname + ')')
         #        checklist = '#'.join(newlist.keys()) + '#'
         #        deleted += 1
@@ -1110,11 +1107,8 @@ def exclude_list(domlist, listname):
 
 
 # Uncomplicate IP lists, remove whitelisted IP's from blacklist
-def uncomplicate_ip_lists():
+def uncomplicate_ip_lists(cwhitelist, cblacklist):
     tag = 'DNS-FIREWALL LISTS: '
-
-    global cblacklist
-    global cwhitelist
 
     log_info(tag + 'Uncomplicating IP black/whitelists')
 
@@ -1150,29 +1144,14 @@ def uncomplicate_ip_lists():
     after = len(new)
     count = after - before
 
-    cblacklist = new
-
     if (debug >= 2): log_info(tag + 'Number of blacklisted IPs went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
-    return True
+    return new
 
 
 # Remove entries from domains already matching by a regex
-def unreg_lists(bw, listname):
+def unreg_lists(dlist, rlist, listname):
     tag = 'DNS-FIREWALL LISTS: '
-
-    global blacklist
-    global whitelist
-    global rblacklist
-    global rwhitelist
-    global excludelist
-
-    if (bw == 'black'):
-        dlist = blacklist
-        rlist = rblacklist
-    else:
-        dlist = whitelist
-        rlist = rwhitelist
 
     log_info(tag + 'Unregging \"' + listname + '\"')
 
@@ -1182,19 +1161,16 @@ def unreg_lists(bw, listname):
         checkregex = rlist[i,1]
         if (debug >= 3): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
 	for found in filter(checkregex.search, dlist):
-            name = dlist.pop(found, None)
+            name = dlist[found]
+            del dlist[found]
             if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + name + '\", already matched by regex \"' + rlist[i,2] + '\"')
 
     after = len(dlist)
     count = after - before
 
-    if (bw == 'black'):
-        blacklist = dlist
-    else:
-        whitelist = dlist
-
     if (debug >= 2): log_info(tag + 'Number of \"' + listname + '\" entries went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
-    return True
+
+    return dlist
 
 
 # Save lists to files
@@ -1231,7 +1207,7 @@ def write_out(whitefile, blackfile):
 
             f.write('### WHITELIST EOF ###\n')
 
-    except IOError:
+    except:
         log_err(tag + 'Unable to write to file \"' + whitefile + '\"')
 
     try:
@@ -1259,7 +1235,7 @@ def write_out(whitefile, blackfile):
 
             f.write('### BLACKLIST EOF ###\n')
 
-    except IOError:
+    except:
         log_err(tag + 'Unable to write to file \"' + blackfile + '\"')
 
     return True
@@ -1294,56 +1270,71 @@ def aggregate_ip(iplist, listname, aggregate):
 
     log_info(tag + 'Aggregating \"' + listname + '\"')
 
-    newlist = iplist
     iplist4, iplist6 = split_46(iplist)
 
     if aggregate:
-        for ip in iplist.keys():
+        for ip in iplist4.keys():
             bitmask = ip.split('/')[1]
-            if (bitmask != '32') and (bitmask != '128'):
+            if bitmask != '32':
                 try:
-                    if ip.find(':') == -1:
-                        children = iplist4.children(ip)
-                    else:
-                        children = iplist6.children(ip)
-
+                    children = iplist4.children(ip)
                     if children:
                         for child in children:
-                            del newlist[child]
-                            if child.find(':') == -1:
-                                del iplist4[child]
-                            else:
-                                del iplist6[child]
-
-                            if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip)
-
-                except Exception:
+                            del iplist4[child]
+                            if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip + ' in \"' + iplist[ip] + '\"')
+                except:
                     pass
+
+        for ip in iplist6.keys():
+            bitmask = ip.split('/')[1]
+            if bitmask != '128':
+                try:
+                    children = iplist6.children(ip)
+                    if children:
+                        for child in children:
+                            del iplist6[child]
+                            if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip + ' in \"' + iplist[ip] + '\"')
+                except:
+                    pass
+
     else:
         log_info(tag + 'Skipping aggregating \"' + listname + '\", just splitting')
 
     before = len(iplist)
-    after = len(newlist)
-    count = after - before
+
+    newlist = pytricia.PyTricia(128)
+
+    for ip in iplist4.keys():
+        newlist[ip] = iplist[ip]
+
+    for ip in iplist6.keys():
+        newlist[ip] = iplist[ip]
 
     iplist = newlist
 
+    after = len(iplist)
+    count = after - before
+
     if (debug >= 2): log_info(tag + '\"' + listname + '\": Number of IP-Entries went from ' + str(before) + ' to ' + str(after) + ' (' + str(count) + ')')
 
-    return iplist4, iplist6
+    return iplist, iplist4, iplist6
 
 
 # Check if file exists and return age (in seconds) if so
 def file_exist(file):
-    if os.path.isfile(file):
-        fstat = os.stat(file)
-        fsize = fstat.st_size
-        if fsize > 0:
-            fexists = True
-            mtime = int(fstat.st_mtime)
-            currenttime = int(datetime.datetime.now().strftime("%s"))
-            age = int(currenttime - mtime)
-            return age
+    if file:
+        try:
+            if os.path.isfile(file):
+                fstat = os.stat(file)
+                fsize = fstat.st_size
+                if fsize > 0:
+                    fexists = True
+                    mtime = int(fstat.st_mtime)
+                    currenttime = int(datetime.datetime.now().strftime("%s"))
+                    age = int(currenttime - mtime)
+                    return age
+        except:
+            pass
 
     return False
 
@@ -1382,7 +1373,7 @@ def init(id, cfg):
 #			nameservers[element[0].upper()] = element[1].replace(' ', '')
 #                        if (debug >= 1): log_info(tag + 'Fetched Nameservers for \"' + element[0] + '\" (' + element[1] + ')')
 #
-#        except IOError:
+#        except:
 #            log_err(tag + 'Unable to open file \"' + nameserverlist + '\"')
 #
 #        if not ('DEFAULT' in nameservers):
@@ -1491,14 +1482,16 @@ def execute_command(qstate):
             domain = '.'.join(qname.split('.')[:-2])
             if domain in whitelist:
                 log_info(tag + 'Removed \"' + domain + '\" from whitelist')
-                whitelist.pop(domain, None)
+                whitelist.pop(domain, False)
+                #del whitelist[domain]
                 clear_cache()
         elif qname.endswith('.del.blacklist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-2])
             if domain in blacklist:
                 log_info(tag + 'Removed \"' + domain + '\" from blacklist')
-                blacklist.pop(domain, None)
+                blacklist.pop(domain, False)
+                #del blacklist[domain]
                 clear_cache()
 
     if rc:
@@ -1522,7 +1515,7 @@ def save_cache():
                 f.write('WHITE:' + line)
                 f.write('\n')
 
-    except IOError:
+    except:
         log_err(tag + 'Unable to open file \"' + cachefile + '\"')
 
     return True
