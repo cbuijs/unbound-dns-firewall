@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.60-20180319 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.66-20180320 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -148,7 +148,7 @@ tldlist = dict()
 disablewhitelist = False
 
 # Filtering on/off
-filtering = True
+filtering = False
 
 # Keep state/lock on commands
 command_in_progress = False
@@ -201,7 +201,7 @@ maxlistage = 43200 # In seconds
 debug = 2
 
 # Default file regex
-#defaultfregex = '^(?P<entry>[a-zA-Z0-9\.\-\_]+)$'
+#defaultfregex = '^(?P<domain>[a-zA-Z0-9\.\-\_]+)$'
 defaultfregex = '^(?P<entry>.*)$'
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
@@ -513,9 +513,7 @@ def load_lists(force, savelists):
     global exclude
     
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
-        }
+    headers = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36' }
 
     # clear lists if already filled
     if (len(blacklist) > 0) or (len(whitelist) > 0):
@@ -608,6 +606,9 @@ def load_lists(force, savelists):
             read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist, True, 'black')
             readblack = False
 
+    addtoblack = dict()
+    addtowhite = dict()
+
     try:
         with open(lists, 'r') as f:
             for line in f:
@@ -652,8 +653,8 @@ def load_lists(force, savelists):
                                         else:
                                             log_err(tag + 'Regex \"@' + r + '\" does not exist in \"' + fileregexlist + '\" using default \"' + defaultfregex +'\"')
                                     
-                                    elif r.find('(?P<entry>') == -1:
-                                        log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P<entry ... )\")')
+                                    elif r.find('(?P<') == -1:
+                                        log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P< ... )\")')
                                     else:
                                         fregex = r
 
@@ -685,6 +686,7 @@ def load_lists(force, savelists):
 
                                     else:
                                         log_info(tag + 'Skipped download \"' + id + '\" previous list \"' + listfile + '\" is only ' + str(age) + ' seconds old')
+                                        source = listfile
 
                                 if url and downloadfile:
                                     sourcefile = downloadfile
@@ -701,10 +703,15 @@ def load_lists(force, savelists):
                                                         for line in f:
                                                             matchentry = regex.match(fregex, line, regex.I)
                                                             if matchentry:
-                                                                entry = matchentry.group('entry') #.replace('\r', '')
-                                                                if entry:
-                                                                    g.write(entry)
-                                                                    g.write('\n')
+                                                                for placeholder in ['domain', 'entry', 'ip', 'line', 'regex']:
+                                                                    try:
+                                                                        entry = matchentry.group(placeholder).replace('\r', '').lower().strip()
+                                                                    except:
+                                                                        entry = False
+
+                                                                    if entry and len(entry) > 0:
+                                                                        g.write(entry)
+                                                                        g.write('\n')
 
                                                 except BaseException as err:
                                                     log_err(tag + 'Unable to write to file \"' + listfile + '\" (' + str(err) + ')')
@@ -730,15 +737,26 @@ def load_lists(force, savelists):
                                     try:
                                         with open(listfile, 'r') as f:
                                             for line in f:
-                                                entry = line.strip().replace('\r', '')
+                                                elements = line.strip().replace('\r', '').split('\t')
+                                                entry = elements[0]
                                                 if (len(entry) > 0) and isdomain.match(entry):
+                                                    if len(elements)>1:
+                                                        action = elements[1]
+                                                    else:
+                                                        action = 'exclude'
+
+                                                    if action == 'black':
+                                                        addtoblack[entry] = id
+                                                    elif action == 'white':
+                                                        addtowhite[entry] = id
+
                                                     excludelist[entry] = id
                                                     excount += 1
 
                                         log_info(tag + 'Fetched ' + str(excount) + ' exclude entries from \"' + listfile + '\" (' + id + ')')
 
-                                    except:
-                                        log_err(tag + 'Unable to read list-file \"' + listfile + '\"')
+                                    except BaseException as err:
+                                        log_err(tag + 'Unable to read list-file \"' + listfile + '\" (' + str(err) + ')')
 
                                 else:
                                     log_err(tag + 'Unknow type \"' + bw + '\" for file \"' + listfile + '\"')
@@ -757,27 +775,37 @@ def load_lists(force, savelists):
 
     # Excluding domains, first thing to do on "dirty" lists
     if excludelist and (readblack or readwhite):
+        # Optimize excludelist
         excludelist = optimize_domlists(excludelist, 'ExcludeDoms')
+
+        # Remove exclude entries from lists
         whitelist = exclude_list(whitelist, excludelist, 'WhiteDoms')
         blacklist = exclude_list(blacklist, excludelist, 'BlackDoms')
+        
+        # Add exclusion entries when requested
+        whitelist = add_exclusion(whitelist, addtowhite, 'WhiteDoms')
+        blacklist = add_exclusion(blacklist, addtoblack, 'BlackDoms')
 
-    # Optimize/Aggregate domain lists (remove sub-domains is parent exists and entries matchin regex)
+    # Optimize/Aggregate white domain lists (remove sub-domains is parent exists and entries matchin regex)
     if readwhite:
         whitelist = optimize_domlists(whitelist, 'WhiteDoms')
         whitelist = unreg_lists(whitelist, rwhitelist, 'WhiteDoms')
 
+    # Optimize/Aggregate black domain lists (remove sub-domains is parent exists and entries matchin regex)
     if readblack:
         blacklist = optimize_domlists(blacklist, 'BlackDoms')
         blacklist = unreg_lists(blacklist, rblacklist, 'BlackDoms')
 
+    # Aggregate/Split CIDR/IP Lists
     cwhitelist, cwhitelist4, cwhitelist6 = aggregate_ip(cwhitelist, 'WhiteIPs', readwhite)
     cblacklist, cblacklist4, cblacklist6 = aggregate_ip(cblacklist, 'BlackIPs', readblack)
 
+    # Remove whitelisted entries from blacklist
     if readblack or readwhite:
-        # Remove whitelisted entries from blacklist
         blacklist = uncomplicate_lists(whitelist, rwhitelist, blacklist)
         cblacklist = uncomplicate_ip_lists(cwhitelist, cblacklist)
 
+    # Reporting
     regexcount = str(len(rblacklist)/3)
     ipcount = str (len(cblacklist))
     domaincount = str(len(blacklist))
@@ -795,6 +823,29 @@ def load_lists(force, savelists):
     gc.collect()
 
     return True
+
+
+# Add exclusions to lists
+def add_exclusion(dlist, elist, listname):
+    tag = 'DNS-FIREWALL LISTS: '
+
+    before = len(dlist)
+
+    for domain in elist.keys():
+        id = elist[domain]
+        if (debug >= 2): log_info(tag + 'Adding excluded entry \"' + domain + '\" to ' + listname + ' (from ' + id + ')')
+        if domain in dlist:
+            if dlist[domain].find(id) == -1:
+                dlist[domain] = dlist[domain] + ', ' + id
+        else:
+            dlist[domain] = id
+
+    after = len(dlist)
+    count = after - before
+
+    if (debug >= 2): log_info(tag + 'Added ' + str(count) + ' exclusion entries \" to ' + listname + ', went from ' + str(before) + ' to ' + str(after))
+
+    return dlist
 
 
 # Read file/list
@@ -1080,15 +1131,14 @@ def exclude_list(domlist, excludelist, listname):
     newlist = domlist
     checklist = '#'.join(newlist.keys()) + '#'
 
-    deleted = 0
     for domain in dom_sort(excludelist.keys()):
         # Just the domain
         if domain in newlist:
             lname = newlist[domain]
+            action = 'exclude'
             del newlist[domain]
             if (debug > 1): log_info(tag + 'Removed excluded entry \"' + domain + '\" from \"' + listname + '\" (' + lname + ')')
             checklist = '#'.join(newlist.keys()) + '#'
-            deleted += 1
 
         # All domains ending in excluded domain (Breaks too much, leave commented out)
         #if '.' + domain + "#" in checklist:
@@ -1099,7 +1149,8 @@ def exclude_list(domlist, excludelist, listname):
         #        deleted += 1
 
     before = len(domlist)
-    after = before - deleted
+    after = len(newlist)
+    deleted = before - after
 
     log_info(tag + '\"' + listname + '\" went from ' + str(before) + ' to ' + str(after) + ', after removing ' + str(deleted) + ' excluded entries')
 
@@ -1334,7 +1385,7 @@ def file_exist(file):
                     age = int(currenttime - mtime)
                     return age
         except:
-            pass
+            return False
 
     return False
 
