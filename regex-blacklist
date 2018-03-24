@@ -1,61 +1,82 @@
-# No dots in hostname
-#^[^\.]+$
-# Invalid chars
-#^.*[^a-zA-Z0-9\.\-].*$
-# More then 36 labels in hostname
-#^([^\.]+\.){37,}$
-# Label longer then 63 positions
-#^([^\.]+){64,}$
-# Hostname longer then 253 positions
-#^.{254,}$
-# Garbage TLD.s
+### No dots in hostname
+#/^[^\.]+$/
+
+### Invalid chars
+
+#/^.*[^a-zA-Z0-9\.\-].*$/
+
+### More then 36 labels in hostname
+#/^([^\.]+\.){37,}$/
+
+### Label longer then 63 positions
+#/^([^\.]+){64,}$/
+
+### Hostname longer then 253 positions
+#/^.{254,}$/
+
+### Garbage TLD.s
 /^(.*\.)*(accountant|ad|analytic[s]*|bar|bid|biz|christmas|click|club|country|cricket|date|dclk|diet|download|faith|gdn|guru|i2p|info|kim|link|loan|men|mobi|mom|name|ninja|office|on(ion|line)|party|pro|racing|realtor|reise|ren|review|rocks|science|space|stream|study|tec(h|hnology)|top|trade|vip|web(cam|site)|work|win|xin|xyz)$/
-# Garbage CC-GTLD's not ending in CCTLD
+
+### Garbage CC-GTLD's not ending in CCTLD
 #/^.*\.(co[m]*|edu|gov|mil|net|org)\.[a-z]{2,2}\..*$/
-# Garbage CCTLD's
+
+### Garbage CCTLD's
 /^(.*\.)*(asia|cm|cn|in|gq|pw|ru|ua)$/
-# Common file-extension TLD's
+
+### Common file-extension TLD's
 /^(.*\.)*(do[ct]|p[op][ast]|pub|sld|vsd|x[lp][as])[ablmstx]{0,1}$/
 /^(.*\.)*(csv|gz|pdf|tar|t[e]*xt|zip)$/
 /^(.*\.)*(bat|cmd|dll|exe)$/
-# Porn/Smut TLD's
+
+### Porn/Smut TLD's
 /^(.*\.)*(adult|porn|sex|xxx)$/
-# Gambling TLD's
+
+### Gambling TLD's
 /^(.*\.)*(auction|bet|casino|game[s]*|poker)$/
-# Private
+
+### Private
 /^(.*\.)*(corp|example|frutch|home|host|invalid|la[bn]|local|localdomain|localhost|nxdomain|rejected|router|test|url|workgroup|wpad)$/
 /^(.*\.)*(10|127|(16|17|18|19|20|21|22|23|24|25|26|27|28|29|31)\.172|254\.169|168\.192)\.in-addr\.arpa$/
 /^(.*\.)*[0ef]\.ip6\.arpa$/
-# Common AD labels
+
+### Common AD labels
 /^(.*[\.\-])*[0-9]*(php|web|[mw])*ad[sxz]*[0-9]*[\.\-]/
 /^(.*[\.\-])*ad(aly[sz]er|am|banner|bureau|click|dynamo|farm|hese|im[a]*g[e]*|info|ition|just|k2|load|log|media|ma(n|nager|x)|ne(t[a-z]+|xus)|nxs|ocean|renaline|revolver|rotat(e|or)|science|script|sense|spirit|[v\-]*s[e]*r(v|ve|ver|vi(ce|ng))|stat|stream)[sxz]*[0-9]*[\.\-]/
 /^(.*[\.\-])*ad([v]*server[a-z]*|shuffle|sl|sy(s|stem)|test|(v|ve(r|rt|rtis(e|er|ing)))|trac(k|king|ker)|wise|word)[sxz]*[0-9]*[\.\-]/
 /^(banner[a-z]*|open[-]*(ad|x)|page[-]*ad|reklam|(secure[-]*)*pub[-]*ad|smart[-]*ad[s]*([-]*server)*|unityad)[sz]*[0-9]*[\.\-]/
-# Common Tracking/Stats labels
+
+### Common Tracking/Stats labels
 /^(.*[\.\-])*(affiliate|([s]*anal|local)[iy](s[iy]s|ti[ck])|click|clk|cooki(e|ex)|cnt|coun(t[y]*|t[e]*[dr])|datacollect|hit|(amp|[s]*)metr[iy][ck]|open[-]*(ad|x)|partner|ping|pixel|sta(t|tisti[ck])|tag|(web|[uv]*)stat)[sz]*[0-9]*[\.\-]/
 /^(.*[\.\-])*(telemetry|(evil|[s]*)trac(k|king|ker)|[s]*trk|utm|video[-]*stat)[sz]*[0-9]*[\.\-]/
-# Common wellknown start labels
+
+### Common wellknown start labels
 /^(creatives|gcirm[0-9]*|marketing|oa(s|scentral)|o(x|x-d)|prom(o|otion)|qwe|.*servedby|syndication|traffic)[\.\-]/
 /^[a-z]\.([0-9]+|ad[^d]|click)/
-# Google
+
+### Google
 /^(.*\.)*google[-]*(analytic|syndication|(ad[a-z0-9]*|tag)[-]*service)[s]*\./
 /^(.*\.)*(www[-]*)*google[-]*(analytic[s]*|(ad|tag)[-]*manager)\./
 /^(.*\.)double[-]*clic(k|k[-]*by[-]*google)\./
 /^(google|partner|pub)ad[s]*(api[s]*)*\./
-# Top-N advertisers/trackers domain(parts)
+
+### Top-N advertisers/trackers domain(parts)
 /^(.*\.)*(atdmt|beget|bango|casalemedia|extreme[-]*dm|flurry|krxd|moatads|mookie[1-9]*|nuggad|omtrdc|p2l|quants[e]*rv[e]*|onestat|onthe|pop(cash|check|test|under|up)|revsci|scorecardresearch|sitestat|tacoda|tynt)\./
 /^(.*\.)*(o0bc|2mdn|2o7|302br|adtech([-]*[a-z]+)*|amazon[-]*adsystem|atwola|bkrtx|bluekai|chartbeat|crwdcntrl|d(e|o)mdex|effectivemeasure|falkag|free|fwmrm|gemius)\./
 /^(.*\.)*(hit(box|tail)|hotjar|imrworldwide|intellitxt|lijit|mixpanel|ms[-]*adcenter|netklix|outbrain|petrovka|pixel|syndication|rubiconproject|sitemeter|smaato|smartadserver|(fast|stat)counter|suprnova|taboola|tradedouble[r]*|xiti|usergrid|visualrevenue)\./
-# IDN
+
+### IDN
 /[^\.]*xn--[^\.]*/
-# Porn
-/^.*(adult|(adult|anal|cam|date|free|hardcore|hot|live|mature|phone|teen)[-]*sex|eroti(c|k)|fuck|gangbang|hardcore|hentai|nsfw|porn|sex[-]*(cam|chat|date|movie|shop|toy)[sz]*[0-9]*|xxx).*$/
-/^(adult|porn|sex(e|y))\./
-# Gambling
+
+### Porn
+/^.*(adult|(adult|ana[a]*l|cam|date|free|hardcore|hot|live|mature|phone|teen)[-]*(fuck|porn[o]*|sex)|eroti(c|k|sich)|fuck|gangbang|(hard|soft)core|hentai|neuk|nsfw|porn[o]*|sex[-]*(cam|chat|dat(e|ing)|movie|shop|show|toy|tracker|video)[sz]*[0-9]*|xxx).*$/
+/^(adult|porn[o]*|sex(e|o|y))\./
+
+### Gambling
 /^.*(casino|betting|lott(ery|o)|gam(e[rs]|ing|bl(e|ing))|sweepstake|poker).*$/
-# Misc / Special
-/^(.*[\.\-])*(advert|banner|beacon|cash|click[y]*|coin|count|megavolt|ms[-]*edge|([ens0-9]+)*(omni|over)ture|pop(cash|check|test|under|up)|tracker)/
-/^.*(advert|banner|beacon|cash|click[y]*|coin|coun(t|ter[s]*)|megavolt|msedge|([ens0-9]+)*(omni|over)ture|pop(cash|check|test|under|up)|track(er|ing))[\.\-]/
+
+### Misc / Special / Other
+#/^(.*[\.\-])*(advert|banner|beacon|cash|click[y]*|coin|count|megavolt|ms[-]*edge|([ens0-9]+)*(omni|over)ture|pop(cash|check|test|under|up)|tracker)/
+#/^.*(advert|banner|beacon|cash|click[y]*|coin|coun(t|ter[s]*)|megavolt|msedge|([ens0-9]+)*(omni|over)ture|pop(cash|check|test|under|up)|track(er|ing))[\.\-]/
 /^a\./
 /^1\./
 /^(.*\.)*[0-9]{2,3}[a-z]+\./
@@ -68,8 +89,8 @@
 /^(.*\.)*[0-9]+[a-z]\./
 /^(.*\.)*[0-9]+\.[a-z]{2,3}$/
 /^myetherwallet\./
-#^d[^\.]+\.cloudfront.net$
-#^.*\.www
+#/^d[^\.]+\.cloudfront.net$/
+#/^.*\.www/
 /^.*(facebook|paypal)\..*-/
 /^(bankofamerica|wellsfargo)-/
 /^(.*\.)*g00\./

@@ -1,28 +1,18 @@
 # Syntax (tab-sepperated):
 # <name> <black|white|exclude> <source-file|source-url> [<save-file>[ <ttl>[ regex[ exregex]]]]
-# regex needs to include a group/anchor named 'entry', e.g.: (?P<entry> ...)'
+#
+# Regex needs to include a group/anchor/placeholder named either 'domain', 'entry', 'ip', 'line' or 'regex' (multiple allowed)
+# - e.g.: (?P<entry> ...)'
+# Regex can start with an add-sign '@' to indicate using a named regex from listregexes file
+#
+# Exregex is an excluding regex, works same as regex above but filter outs instead of including. Cannot be a shortcut, does not support group/anchor/placeholders.
 #
 # Example regexes:
 # domain/hostname: (?P<entry>[a-zA-Z0-9\.\-]+)
 # IP-Addres (v4 and v6): (?P<entry>(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*))
 
-#Default-Blacklist	black	/etc/unbound/blacklist
-#Default-Whitelist	white	/etc/unbound/whitelist
-#Tiny-Domain-Black	black	/opt/blocker/tiny/domains.list
-#Tiny-Domain-White	white	/opt/blocker/tiny/domains-whitelist.list
-#Tiny-Host-Black	black	/opt/blocker/tiny/hosts.list
-#Tiny-Host-White	white	/opt/blocker/tiny/hosts-whitelist.list
-#Tiny-IP-Black	black	/opt/blocker/tiny/ips.list
-#Tiny-IP-White	white	/opt/blocker/tiny/ips-white.list
-Malicious-IP	black	/opt/iplist/malicious-ips.list
-
-Regex-Black	black	/etc/unbound/regex-blacklist
-Regex-White	white	/etc/unbound/regex-whitelist
-
-Chris-Black	black	/opt/blocker/blocker.black
-Chris-White	white	/opt/blocker/blocker.white
-Chris-TLD	black	/opt/blocker/tlds.black
-Chris-Exclude	exclude	/etc/unbound/exclude
+Default-Regex-Black	black	/etc/unbound/regex-blacklist
+Default-Regex-White	white	/etc/unbound/regex-whitelist
 
 Disconnect-Ads	black	https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt	/etc/unbound/disconnect-ads.list	86400	@DOMAIN
 Disconnect-Malware	black	https://s3.amazonaws.com/lists.disconnect.me/simple_malware.txt	/etc/unbound/disconnect-malware.list	86400	@DOMAIN
@@ -35,42 +25,36 @@ Adguard-FireFox	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusi
 Adguard-Issues	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/issues.txt	/etc/unbound/adguard-issues.list	86400	@DOMAIN
 Adguard-Sensistive	white	https://raw.githubusercontent.com/AdguardTeam/HttpsExclusions/master/sensitive.txt	/etc/unbound/adguard-sensitive.list	86400	@DOMAIN
 
-#EasyList	black	https://easylist.to/easylist/easylist.txt	/etc/unbound/easylist.list	86400	@ADBLOCK-BLACK
-#EasyList-White	white	https://easylist.to/easylist/easylist.txt	/etc/unbound/easylist-white.list	86400	@ADBLOCK-WHITE
 EasyList-Dutch	black	https://easylist-downloads.adblockplus.org/easylistdutch.txt	/etc/unbound/easylist-dutch.list	86400	@ADBLOCK-BLACK
-EasyList-Dutch-White	white	https://easylist-downloads.adblockplus.org/easylistdutch.txt	/etc/unbound/easylist-dutch-white.list	86400	@ADBLOCK-WHITE
+EasyList-Dutch-White	white	/etc/unbound/easylist-dutch.list.download	/etc/unbound/easylist-dutch-white.list	86400	@ADBLOCK-WHITE
 EasyList-French	black	https://easylist-downloads.adblockplus.org/liste_fr.txt	/etc/unbound/easylist-french.list	86400	@ADBLOCK-BLACK
-EasyList-French-White	white	https://easylist-downloads.adblockplus.org/liste_fr.txt	/etc/unbound/easylist-french-white.list	86400	@ADBLOCK-WHITE
-#EasyPrivacy	black	https://easylist.to/easylist/easyprivacy.txt	/etc/unbound/easyprivacy.list	86400	@ADBLOCK-BLACK
-#EasyPrivacy-White	white	https://easylist.to/easylist/easyprivacy.txt	/etc/unbound/easyprivacy-white.list	86400	@ADBLOCK-WHITE
+EasyList-French-White	white	/etc/unbound/easylist-french.list.download	/etc/unbound/easylist-french-white.list	86400	@ADBLOCK-WHITE
 
 FanBoy-Complete	black	https://fanboy.co.nz/r/fanboy-complete.txt	/etc/unbound/fanboy.list	86400	@ADBLOCK-BLACK
-FanBoy-Complete-White	white	https://fanboy.co.nz/r/fanboy-complete.txt	/etc/unbound/fanboy-white.list	86400	@ADBLOCK-WHITE
+FanBoy-Complete-White	white	/etc/unbound/fanboy.list.download	/etc/unbound/fanboy-white.list	86400	@ADBLOCK-WHITE	^.*[,\$]generic(block|hide).*$
 
 PipeRun	black	https://raw.githubusercontent.com/piperun/iploggerfilter/master/filterlist	/etc/unbound/piperun.list	86400	@ADBLOCK-BLACK
 
 PopAds	black	https://raw.githubusercontent.com/Yhonay/antipopads/master/popads.txt	/etc/unbound/popads.list	86400	@ADBLOCK-BLACK
 
-Anudeep	white	https://raw.githubusercontent.com/anudeepND/whitelist/master/whitelist.txt	/etc/unbound/anudeep.list	86400	@DOMAIN
+#Anudeep	white	https://raw.githubusercontent.com/anudeepND/whitelist/master/whitelist.txt	/etc/unbound/anudeep.list	86400	@DOMAIN
 Anudeep-YouTube-Ads	black	https://raw.githubusercontent.com/anudeepND/youtubeadsblacklist/master/domainlist.txt	/etc/unbound/anudeep-youtube-ads.list	86400	@DOMAIN
 
 BarbBlock	black	https://ssl.bblck.me/blacklists/domain-list.txt	/etc/unbound/barbblock.list	86400	@DOMAIN
 
 Adguard-Cryptominers	black	https://raw.githubusercontent.com/AdguardTeam/AdguardFilters/master/EnglishFilter/sections/cryptominers.txt	/etc/unbound/adguard-cryptominers.list	86400	@ADBLOCK-BLACK
-
 CoinBlocker	black	https://raw.githubusercontent.com/ZeroDot1/CoinBlockerLists/master/list.txt	/etc/unbound/coinblocker.list	86400	@DOMAIN
 CoinBlocker-IP	black	https://raw.githubusercontent.com/ZeroDot1/CoinBlockerLists/master/MiningServerIPList.txt	/etc/unbound/coinblocker-ip.list	86400	@IP
 NoCoin	black	https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt	/etc/unbound/nocoin.list	86400	@HOST0
 
-
 Dshield-Top10	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10.list	86400	@HOST	^site$
-Dshield-Top10-IP	black	http://feeds.dshield.org/top10-2.txt	/etc/unbound/dshield-top10-ip.list	86400	@IP	^site$
 Dshield-Suspicious	black	https://www.dshield.org/feeds/suspiciousdomains_High.txt	/etc/unbound/dshield-suspicious.list	86400	@DOMAIN	^site$
 Dshield-Whitelist	white	https://dshield.org/feeds/suspiciousdomains_whitelist_approved.txt	/etc/unbound/dshield-white.list	86400	@DOMAIN	^site$
 
 FireHol1	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset	/etc/unbound/firehol1.list	86400	@IP
 FireHol2	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset	/etc/unbound/firehol2.list	86400	@IP
 FireHol3	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset	/etc/unbound/firehol3.list	86400	@IP
+#FireHol4	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level4.netset	/etc/unbound/firehol4.list	86400	@IP
 FireHol-Abusers	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset	/etc/unbound/firehol-abusers.list	86400	@IP
 
 BaddBoys	black	https://raw.githubusercontent.com/mitchellkrogza/Badd-Boyz-Hosts/master/hosts	/etc/unbound/baddboyz.list	86400	@HOST0
@@ -92,6 +76,9 @@ SpamHaus-DropV6	black	https://www.spamhaus.org/drop/dropv6.txt	/etc/unbound/spam
 
 Steven-Black-Hosts	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts	/etc/unbound/stevenblack.list	86400	@HOST0
 
+SquidBlackList-Ads	black	https://www.squidblacklist.org/downloads/dg-ads.acl	/etc/unbound/squidblacklist-ads.list	86400	@DOMAIN
+SquidBlackList-Malicious	black	https://www.squidblacklist.org/downloads/dg-malicious.acl	/etc/unbound/squidblacklist-malicious.list	86400	@DOMAIN
+
 Suspect-Networks	black	https://suspect-networks.io/downloads/suspect_networks.txt	/etc/unbound/suspect-networks.list	86400	@IP
 
 Turris-Grey	black	https://project.turris.cz/greylist-data/greylist-latest.csv	/etc/unbound/turris-grey.list	86400	@IP
@@ -106,21 +93,21 @@ Bulk-Registars	black	http://mirror1.malwaredomains.com/files/bulk_registrars.txt
 Immortal-Malware	black	http://mirror1.malwaredomains.com/files/immortal_domains.txt	/etc/unbound/immortal-domains.list	86400	@DOMAIN
 Skype-Resolvers	black	http://mirror1.malwaredomains.com/files/Skype-resolvers.txt	/etc/unbound/skype-resolvers.list	86400	@DOMAIN
 Free-WebHosts	black	http://mirror1.malwaredomains.com/files/freewebhosts.txt	/etc/unbound/freewebhosts.list	86400	@DOMAIN
+Spyware	black	http://mirror1.malwaredomains.com/files/spywaredomains.zones	/etc/unbound/spyware.list	86400	@ZONE
 
-OpenPhish	black	https://openphish.com/feed.txt	/etc/unbound/openphish.list	86400	@URL
-
-SquidBlackList-Ads	black	https://www.squidblacklist.org/downloads/dg-ads.acl	/etc/unbound/squidblacklist-ads.list	86400	@DOMAIN
-SquidBlackList-Malicious	black	https://www.squidblacklist.org/downloads/dg-malicious.acl	/etc/unbound/squidblacklist-malicious.list	86400	@DOMAIN
+RansomeWareTracker-Domains	black	https://ransomwaretracker.abuse.ch/downloads/RW_DOMBL.txt	/etc/unbound/ransomewaretracker-doms.list	86400	@DOMAIN
+RansomeWareTracker-IPs	black	https://ransomwaretracker.abuse.ch/downloads/RW_IPBL.txt	/etc/unbound/ransomewaretracker-ips.list	86400	@IP
+ZeusTracker-BadDomains	black	https://zeustracker.abuse.ch/blocklist.php?download=baddomains	/etc/unbound/zeus-baddomains.list	86400	@DOMAIN
+ZeusTracker-BadIPs	black	https://zeustracker.abuse.ch/blocklist.php?download=badips	/etc/unbound/zeus-badips.list	86400	@IP
+Feado-Domains	black	https://feodotracker.abuse.ch/blocklist/?download=domainblocklist	/etc/unbound/feado-domains.list	86400	@DOMAIN
+Feado-IPs	black	https://feodotracker.abuse.ch/blocklist/?download=ipblocklist	/etc/unbound/feado-ips.list	86400	@IP
+#SSL-BL	black	https://sslbl.abuse.ch/blacklist/sslipblacklist.csv	/etc/unbound/ssl-blacklist.list	86400	@IP
 
 #SA-BlackList	black	http://www.sa-blacklist.stearns.org/sa-blacklist/sa-blacklist.current.domains	/etc/unbound/sa-blacklist.list	86400	@DOMAIN
 
-RansomeWareTracker-Domains	black	https://ransomwaretracker.abuse.ch/downloads/RW_DOMBL.txt	/etc/unbound/ransomewaretracker-doms.list	86400	@DOMAIN
-#RansomeWareTracker-IPs	black	https://ransomwaretracker.abuse.ch/downloads/RW_IPBL.txt	/etc/unbound/ransomewaretracker-ips.list	86400	@IP
-ZeusTracker-BadDomains	black	https://zeustracker.abuse.ch/blocklist.php?download=baddomains	/etc/unbound/zeus-baddomains.list	86400	@DOMAIN
-#ZeusTracker-BadIPs	black	https://zeustracker.abuse.ch/blocklist.php?download=badips	/etc/unbound/zeus-badips.list	86400	@IP
-Feado-Domains	black	https://feodotracker.abuse.ch/blocklist/?download=domainblocklist	/etc/unbound/feado-domains.list	86400	@DOMAIN
-#Feado-IPs	black	https://feodotracker.abuse.ch/blocklist/?download=ipblocklist	/etc/unbound/feado-ips.list	86400	@IP
-#SSL-BL	black	https://sslbl.abuse.ch/blacklist/sslipblacklist.csv	/etc/unbound/ssl-blacklist.list	86400	@IP
+OpenPhish	black	https://openphish.com/feed.txt	/etc/unbound/openphish.list	86400	@URL
 
 PhishTank	black	http://data.phishtank.com/data/online-valid.csv	/etc/unbound/phishtank.list	86400	@URLCSV2
 
+Blacklist.DE	black	https://lists.blocklist.de/lists/all.txt	/etc/unbound/blocklist.de.list	86400	@IP
+Blacklist.DE-Strong	black	https://lists.blocklist.de/lists/strongips.txt	/etc/unbound/blocklist.de-strong.list	86400	@IP
