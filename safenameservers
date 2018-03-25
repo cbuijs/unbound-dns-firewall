@@ -1,3 +1,4 @@
+# !!! EXPERIMENTAL, CODE FOR THIS IS DISABLED IN dns-firewall.py !!!
 Default	DNS:9.9.9.9,149.112.112.112
 Level-3	DNS:209.244.0.3,209.244.0.4
 Level-3-Alt	DNS:4.2.2.1,4.2.2.2,4.2.2.3,4.2.2.4,4.2.2.5,4.2.2.6
