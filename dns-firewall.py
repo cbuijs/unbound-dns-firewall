@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.68-20180324 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.69-20180324 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -66,7 +66,8 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 
 # Standard/Included modules
-import os, os.path, commands, datetime, gc
+import os, os.path, datetime, gc
+#import os, os.path, commands, datetime, gc
 from thread import start_new_thread
 
 # DNS Resolver (SafeDNS)
@@ -96,7 +97,8 @@ tag = 'DNS-FIREWALL INIT: '
 tagcount = 0
 
 # IP Address to redirect to, leave empty to generate REFUSED
-intercept_address = '192.168.1.250'
+intercept_address = ''
+#intercept_address = '192.168.1.250'
 intercept_host = 'sinkhole.'
 
 # List files
@@ -185,7 +187,7 @@ autoreverse = True
 blockv6 = True
 
 # CNAME Collapsing (note: whitelisted entries are not collapsed)
-collapse = False
+collapse = True
 
 # Allow RFC 2606 TLD's
 rfc2606 = False
