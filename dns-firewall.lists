@@ -111,3 +111,6 @@ PhishTank	black	http://data.phishtank.com/data/online-valid.csv	/etc/unbound/phi
 
 Blacklist.DE	black	https://lists.blocklist.de/lists/all.txt	/etc/unbound/blocklist.de.list	86400	@IP
 Blacklist.DE-Strong	black	https://lists.blocklist.de/lists/strongips.txt	/etc/unbound/blocklist.de-strong.list	86400	@IP
+
+Bogon4	black	https://www.team-cymru.org/Services/Bogons/fullbogons-ipv4.txt	/etc/unbound/bogon4.list	86400	@IP
+Bogon6	black	https://www.team-cymru.org/Services/Bogons/fullbogons-ipv6.txt	/etc/unbound/bogon6.list	86400	@IP
