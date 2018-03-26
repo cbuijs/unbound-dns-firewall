@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.69-20180324 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.70-20180326 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -67,10 +67,9 @@ sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 
 # Standard/Included modules
 import os, os.path, datetime, gc
-#import os, os.path, commands, datetime, gc
 from thread import start_new_thread
 
-# DNS Resolver (SafeDNS)
+# DNS Resolver (used for SafeDNS)
 #import dns.resolver
 
 # Enable Garbage collection
@@ -97,8 +96,8 @@ tag = 'DNS-FIREWALL INIT: '
 tagcount = 0
 
 # IP Address to redirect to, leave empty to generate REFUSED
-intercept_address = ''
-#intercept_address = '192.168.1.250'
+#intercept_address = ''
+intercept_address = '192.168.1.250'
 intercept_host = 'sinkhole.'
 
 # List files
@@ -204,13 +203,14 @@ debug = 2
 
 # Default file regex
 #defaultfregex = '^(?P<domain>[a-zA-Z0-9\.\-\_]+)$'
-defaultfregex = '^(?P<entry>.*)$'
+#defaultfregex = '^(?P<entry>[a-zA-Z0-9\.\:\_\/\-]+)$'
+defaultfregex = '^(?P<line>.*)$'
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
-#ip4regex = '((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(/(3[0-2]|[12]?[0-9]))*'
-#ip6regex = '(([a-f0-9:]+:+)+[a-f0-9]+)(/(12[0-8]|1[01][0-9]|[1-9]?[0-9]))*'
-#ipregex = regex.compile('^(' + ip4regex + '|' + ip6regex +')')
-ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
+ip4regex = '((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(/(3[0-2]|[12]?[0-9]))*'
+ip6regex = '(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))(/([0-9]|[1-8][0-9]|9[0-9]|1[01][0-9]|12[0-8]))'
+ipregex = regex.compile('^(' + ip4regex + '|' + ip6regex +')', regex.I)
+#ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
 
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
@@ -654,7 +654,7 @@ def load_lists(force, savelists):
                                         r = r.split('@')[1].upper().strip()
                                         if r in fileregex:
                                             fregex = fileregex[r]
-                                            if (debug >=2): log_info(tag + 'Using \"@' + r + '\" regex/filter for \"' + id + '\" (' + fregex + ')')
+                                            if (debug >= 3): log_info(tag + 'Using \"@' + r + '\" regex/filter for \"' + id + '\" (' + fregex + ')')
                                         else:
                                             log_err(tag + 'Regex \"@' + r + '\" does not exist in \"' + fileregexlist + '\" using default \"' + defaultfregex +'\"')
                                     
@@ -665,7 +665,7 @@ def load_lists(force, savelists):
 
                                 if len(element) > 6:
                                     exclude = regex.compile('(' + element[6] + '|' + defaultexclude + ')', regex.I)
-                                    if (debug >=2): log_info(tag + id + ': Using \"' + element[6] + '\" exclude-regex/filter')
+                                    if (debug >=3): log_info(tag + id + ': Using \"' + element[6] + '\" exclude-regex/filter')
                                 else:
                                     exclude = regex.compile(defaultexclude, regex.I)
 
