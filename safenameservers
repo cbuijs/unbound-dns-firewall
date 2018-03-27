@@ -1,4 +1,4 @@
-### Don't include then DNS servers unbound is forwarding to if any.
+### Don't include the DNS servers unbound is forwarding to if any.
 ### Unbound resolution will provide the seed/base ASN.
 ###
 #Quad9	9.9.9.9,149.112.112.112
