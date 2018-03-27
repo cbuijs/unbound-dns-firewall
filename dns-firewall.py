@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.70-20180326 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.75-20180327 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -66,11 +66,11 @@ import sys
 sys.path.append("/usr/local/lib/python2.7/dist-packages/")
 
 # Standard/Included modules
-import os, os.path, datetime, gc
+import os, os.path, datetime, gc, subprocess
 from thread import start_new_thread
 
 # DNS Resolver (used for SafeDNS)
-#import dns.resolver
+import dns.resolver
 
 # Enable Garbage collection
 gc.enable()
@@ -84,8 +84,11 @@ import regex
 # Use module pytricia to find ip's in CIDR's dicts fast
 import pytricia
 
-# Use expiringdictionary for cache
-from expiringdict import ExpiringDict
+# Use CacheTools TTLCache for cache
+from cachetools import TTLCache
+
+# Use PyAsn for SafeDNS ASN lookups
+import pyasn
 
 ##########################################################################################
 
@@ -127,8 +130,10 @@ excludelist = dict() # Domain excludelist
 # Cache
 cachesize = 5000
 cachettl = 1800
-blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
-whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
+#blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
+#whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
+blackcache = TTLCache(cachesize, cachettl)
+whitecache = TTLCache(cachesize, cachettl)
 cachefile = '/etc/unbound/cache.file'
 
 # Save
@@ -172,6 +177,9 @@ command_in_progress = False
 # dig @127.0.0.1 <domain>.del.whitelist.commandtld - Remove <Domain> from whitelist
 # dig @127.0.0.1 <domain>.del.blacklist.commandtld - Remove <Domain> from blacklist
 commandtld = '.command'
+
+# unbound-control, leavemake empty '' to disable
+ucontrol = '/usr/local/sbin/unbound-control -c /etc/unbound/unbound.conf'
 
 # Check answers/responses as well
 checkresponse = True
@@ -222,18 +230,20 @@ isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus under
 # Regex for excluded entries to fix issues
 #exclude = regex.compile('^(((0{1,3}\.){3}0{1,3}|(0{1,4}|:)(:(0{0,4})){1,7})/[0-8]|fastly.net|google\.com|googlevideo\.com|site)$', regex.I) # Bug in PyTricia '::/0' matching IPv4 as well
 #exclude = regex.compile('^(fastly.net|googl(e|eapi[s]*|evideo)\.com|site)$', regex.I)
-defaultexclude = '^(127\.0\.0\.1|::1|local(host|net[s]*))$'
+#defaultexclude = '^(0\.0\.0\.0/8|::/8|127\.0\.0\.1(/32)*|::1(/128)*|local(host|net[s]*))$'
+defaultexclude = '^(127\.0\.0\.1(/32)*|::1(/128)*|local(host|net[s]*))$'
 exclude = regex.compile(defaultexclude, regex.I)
 
 # Regex for www entries
 #wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
 
 # SafeDNS - HIGHLY EXPERIMENTAL AND WILL BREAK STUFF, USE AT OWN RISK !!!
-#safedns = False
-#safednsblock = False # When False, only monitoring/reporting
-#safescore = 33 # Percentage, if score is below we block
-#nameservers = dict()
-#nameserverslist = '/etc/unbound/safenameservers'
+safedns = True
+safednsblock = True # When False, only monitoring/reporting
+nameservers = dict()
+nameserverslist = '/etc/unbound/safenameservers'
+asndb = pyasn.pyasn('/etc/unbound/ipasn.dat')
+asncache = TTLCache(cachesize, cachettl)
 
 ##########################################################################################
 
@@ -460,6 +470,9 @@ def clear_cache():
     tag = 'DNS-FIREWALL CACHE: '
 
     log_info(tag + 'Clearing Cache')
+
+    flush_dns_cache('.')
+
     blackcache.clear()
     whitecache.clear()
 
@@ -659,15 +672,26 @@ def load_lists(force, savelists):
                                             log_err(tag + 'Regex \"@' + r + '\" does not exist in \"' + fileregexlist + '\" using default \"' + defaultfregex +'\"')
                                     
                                     elif r.find('(?P<') == -1:
-                                        log_err(tag + 'Regex \"' + r + '\" does not contain group-name \"entry\" (e.g: \"(?P< ... )\")')
+                                        log_err(tag + 'Regex \"' + r + '\" does not contain placeholder (e.g: \"(?P< ... )\")')
                                     else:
                                         fregex = r
 
+                                exclude = regex.compile(defaultexclude, regex.I)
                                 if len(element) > 6:
-                                    exclude = regex.compile('(' + element[6] + '|' + defaultexclude + ')', regex.I)
-                                    if (debug >=3): log_info(tag + id + ': Using \"' + element[6] + '\" exclude-regex/filter')
-                                else:
-                                    exclude = regex.compile(defaultexclude, regex.I)
+                                    r = element[6]
+                                    if r.startswith('@'):
+                                        r = r.split('@')[1].upper().strip()
+                                        if r in fileregex:
+                                            exclude = regex.compile(fileregex[r], regex.I)
+                                            if (debug >= 3): log_info(tag + 'Using \"@' + r + '\" exclude regex/filter for \"' + id + '\" (' + r + ')')
+                                        else:
+                                            log_err(tag + 'Regex \"@' + r + '\" does not exist in \"' + fileregexlist + '\" using default \"' + defaultexclude +'\"')
+                                    else:
+                                        exclude = regex.compile(r, regex.I)
+
+                                #if len(element) > 6:
+                                #    exclude = regex.compile('(' + element[6] + '|' + defaultexclude + ')', regex.I)
+                                #    if (debug >=3): log_info(tag + id + ': Using \"' + element[6] + '\" exclude-regex/filter')
 
                                 if url:
                                     age = file_exist(listfile)
@@ -797,8 +821,8 @@ def load_lists(force, savelists):
         excludelist = optimize_domlists(excludelist, 'ExcludeDoms')
 
         # Remove exclude entries from lists
-        whitelist = exclude_list(whitelist, excludelist, 'WhiteDoms')
-        blacklist = exclude_list(blacklist, excludelist, 'BlackDoms')
+        whitelist = exclude_domlist(whitelist, excludelist, 'WhiteDoms')
+        blacklist = exclude_domlist(blacklist, excludelist, 'BlackDoms')
         
         # Add exclusion entries when requested
         whitelist = add_exclusion(whitelist, addtowhite, 'WhiteDoms')
@@ -920,10 +944,19 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
 
                                 if cidr:
                                     if iplist.has_key(cidr):
-                                        if iplist[cidr].find(id) == -1:
-                                            oldid = iplist[cidr].split('(')[1].split(')')[0].strip()
-                                            iplist[cidr] = '\"' + cidr + '\" (' + str(oldid) + ', ' + str(id) + ')'
-                                            skipped += 1
+                                        compcidr = iplist[cidr].split('\"')[1]
+                                        if cidr == compcidr:
+                                            if iplist[cidr].find(id) == -1:
+                                                oldid = iplist[cidr].split('(')[1].split(')')[0].strip()
+                                                iplist[cidr] = '\"' + cidr + '\" (' + str(oldid) + ', ' + str(id) + ')'
+                                                skipped += 1
+                                        else:
+                                            print id, cidr, iplist[cidr], "key mismatch with", compcidr, "removing", cidr, "and preserving", compcidr
+                                            iplist.delete(cidr)
+                                            try:
+                                                iplist[compcidr] = '\"' + compcidr + '\" (' + iplist[compcidr] + '-FIXED)'
+                                            except:
+                                                pass
                                     else:
                                         try:
                                             iplist[cidr] = '\"' + cidr + '\" (' + str(id) + ')'
@@ -989,6 +1022,27 @@ def decode_data(rawdata, start):
        remain -= 1
        text += c
     return text.strip('.').lower()
+
+
+def flush_dns_cache(domain):
+    if ucontrol:
+        command = ucontrol +' flush_zone ' + domain
+
+        print '\n#### FLUSHING', '\"' + domain + '\"'
+        print 'Running:', command
+
+        rc = 0
+        try:
+            rc = subprocess.call(command, shell=True)
+        except BaseException as err:
+            print "ERROR:", err
+
+        print 'Return-Code:', rc
+
+        if rc != 0:
+            return False
+
+    return True
 
 
 # Generate response DNS message
@@ -1135,7 +1189,7 @@ def uncomplicate_lists(whitelist, rwhitelist, blacklist):
 
 
 # Remove excluded entries from domain-lists
-def exclude_list(domlist, excludelist, listname):
+def exclude_domlist(domlist, excludelist, listname):
     tag = 'DNS-FIREWALL LISTS: '
 
     log_info( tag + 'Excluding \"' + listname + '\"')
@@ -1417,7 +1471,7 @@ def init(id, cfg):
     global cblacklist6
     global cwhitelist6
     global excludelist
-#    global safedns
+    global safedns
 
     log_info(tag + 'Initializing')
 
@@ -1425,23 +1479,19 @@ def init(id, cfg):
     load_lists(False, savelists)
     #start_new_thread(load_lists, (savelists,)) # !!! EXPERIMENTAL !!!
 
-#    if safedns:
-#        log_info(tag + 'Loading SafeDNS nameservers')
-#        try:
-#            with open(nameserverslist, 'r') as f:
-#                for line in f:
-#                    entry = line.strip().replace('\r', '')
-#                    if not (entry.startswith("#")) and not (len(entry) == 0):
-#                        element = entry.split('\t')
-#			nameservers[element[0].upper()] = element[1].replace(' ', '')
-#                        if (debug >= 1): log_info(tag + 'Fetched Nameservers for \"' + element[0] + '\" (' + element[1] + ')')
-#
-#        except:
-#            log_err(tag + 'Unable to open file \"' + nameserverlist + '\"')
-#
-#        if not ('DEFAULT' in nameservers):
-#            safedns = False
-#            log_err(tag + 'No \"DEFAULT\" nameserver, SafeDNS disabled')
+    if safedns:
+        log_info(tag + 'Loading SafeDNS nameservers')
+        try:
+            with open(nameserverslist, 'r') as f:
+                for line in f:
+                    entry = line.strip().replace('\r', '')
+                    if not (entry.startswith("#")) and not (len(entry) == 0):
+                        element = entry.split('\t')
+			nameservers[element[0].upper()] = element[1].replace(' ', '')
+                        if (debug >= 1): log_info(tag + 'Fetched Nameservers for \"' + element[0] + '\" (' + element[1] + ')')
+
+        except:
+            log_err(tag + 'Unable to open file \"' + nameserverlist + '\"')
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -1505,6 +1555,7 @@ def execute_command(qstate):
             if filtering:
                 log_info(tag + 'Filtering PAUSED')
                 filtering = False
+                flush_dns_cache('.')
             else:
                 log_info(tag + 'Filtering already PAUSED')
         elif qname == 'resume':
@@ -1534,19 +1585,20 @@ def execute_command(qstate):
             if not domain in whitelist:
                 log_info(tag + 'Added \"' + domain + '\" to whitelist')
                 whitelist[domain] = 'Whitelisted'
+                flush_dns_cache(domain)
         elif qname.endswith('.add.blacklist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-2])
             if not domain in blacklist:
                 log_info(tag + 'Added \"' + domain + '\" to blacklist')
                 blacklist[domain] = 'Blacklisted'
+                flush_dns_cache(domain)
         elif qname.endswith('.del.whitelist'):
             rc = True
             domain = '.'.join(qname.split('.')[:-2])
             if domain in whitelist:
                 log_info(tag + 'Removed \"' + domain + '\" from whitelist')
                 whitelist.pop(domain, False)
-                #del whitelist[domain]
                 clear_cache()
         elif qname.endswith('.del.blacklist'):
             rc = True
@@ -1554,7 +1606,6 @@ def execute_command(qstate):
             if domain in blacklist:
                 log_info(tag + 'Removed \"' + domain + '\" from blacklist')
                 blacklist.pop(domain, False)
-                #del blacklist[domain]
                 clear_cache()
 
     if rc:
@@ -1603,46 +1654,51 @@ def inform_super(id, qstate, superqstate, qdata):
     return True
 
 
-# Query DNS
-#def query_dns(name, ns, type, qname, qtype, domain):
-#    resolver = dns.resolver.Resolver(configure=False)
-#    resolver.lifetime = 8
-#    resolver.timeout = 2
-#    resolver.nameservers = ns
-#
-#    if qtype == 'A':
-#        answers = set()
-#        if type == 'DNS':
-#            response = resolver.query(qname, qtype)
-#            if response:
-#                for answer in response:
-#                    answers.add(str(answer.address))
-#
-#                return sorted(answers)
-#
-#        elif type == 'DNSBL':
-#            response = resolver.query(qname + '.' + domain, qtype)
-#            if response:
-#                for answer in response:
-#                    if str(answer.address).startswith('127.'):
-#                        return 'BLOCK'
-#
-#    return False
-#
-## Get DNS Params/Args
-#def get_ns(nameservers, dns):
-#    numfields = len(nameservers[dns].split(':'))
-#    domain = False
-#    if numfields > 1:
-#        type = nameservers[dns].split(':')[0].upper()
-#        ns = nameservers[dns].split(':')[1].split(',')
-#        if numfields > 2:
-#             domain = nameservers[dns].split(':')[2]
-#    else:
-#        type = 'DNS'
-#        ns = nameservers[dns].split(',')
-#
-#    return type, ns, domain
+# Check ASN
+def check_asn(qname, type, ip):
+    tag = 'DNS-FIREWALL ASN: '
+
+    if not ip in asncache:
+        asn = asndb.lookup(ip)
+        if asn:
+            baseasn = str(asn[0])
+
+            resolver = dns.resolver.Resolver(configure=False)
+            resolver.lifetime = 3
+            resolver.timeout = 2
+
+            for ns in nameservers.keys():
+                if (debug >= 2): log_info(tag + 'Checking \"' + qname + '\" Base-ASN: \"' + baseasn + '\" against ' + ns)
+
+                resolver.nameservers = nameservers[ns].split(',')
+
+                response = False
+                try:
+                    response = resolver.query(qname, type)
+                except BaseException as err:
+                    log_err('ASN-DNS resolution error ' + str(err))
+
+                if response:
+                    for answer in response:
+                       ip2 = answer.address
+                       asn = asndb.lookup(ip2)
+                       if asn:
+                           asn = str(asn[0])
+                           if baseasn != asn:
+                               if (debug >= 2): log_info(tag + 'HIT \"' + qname + '\" Base-ASN: \"' + baseasn + '\" <> ' + ns + ': \"' + asn + '\"')
+                               #print qname, ns, asndb.get_as_prefixes(asn)
+                               return False
+
+            if (debug >= 2): log_info(tag + 'Adding \"' + qname + '\" Base-ASN: \"' + baseasn + '\" to ASN-Cache')
+            asncache[ip] = baseasn
+            return baseasn
+
+    else:
+        if (debug >= 2): log_info(tag + 'Found \"' + qname + '\" ASN-Cache (' + asncache[ip] + ')')
+        return asncache[ip]
+
+    return 'NoASN'
+
 
 # Main beef/process
 def operate(id, event, qstate, qdata):
@@ -1670,7 +1726,6 @@ def operate(id, event, qstate, qdata):
         # Get query name
         qname = qstate.qinfo.qname_str.rstrip('.').lower()
         if qname:
-            #if cip == '127.0.0.1' and (qname.endswith(commandtld)) and execute_command(qstate):
             if cip == '127.0.0.1' and (qname.endswith(commandtld)):
                 start_new_thread(execute_command, (qstate,))
 
@@ -1688,73 +1743,7 @@ def operate(id, event, qstate, qdata):
             if not in_list(qname, 'white', 'QUERY', qtype):
 
                 # Check if blacklisted, if so process and block
-                if not in_list(qname, 'black', 'QUERY', qtype):
-                    dummy = 0
-#                    # !!! Move below SafeDNS piece in it's own def/sub and re-use for responses
-#                    # Use SafeDNS to determine if a domain is bad
-#                    if safedns and qtype == 'A':
-#                        type, ns, domain = get_ns(nameservers, 'DEFAULT')
-#                        if ns:
-#                            if (debug >= 2): log_info(tag + 'SafeDNS: Checking \"' + qname + '/' + qtype + '\" against DEFAULT (' + type + ')')
-#
-#                            defaultresponse = query_dns('DEFAULT', ns, type, qname, qtype, domain)
-#                            if defaultresponse:
-#                                maxscore = len(nameservers.keys()) - 1
-#                                scorecount = 0
-#                                for dns in sorted(nameservers.keys()):
-#                                    if not dns == 'DEFAULT':
-#                                        type, ns, domain = get_ns(nameservers, dns)
-#                                        if ns:
-#                                            if (debug >= 2): log_info(tag + 'SafeDNS: Checking \"' + qname + '/' + qtype + '\" against ' + dns + ' (' + type + ')')
-#
-#                                            response = query_dns(dns, ns, type, qname, qtype, domain)
-#                                            if response:
-#                                                if type != 'DNS':
-#                                                    if response == 'BLOCK':
-#                                                        if safednsblock:
-#                                                            log_info(tag + 'SafeDNS HIT: \"' + qname + '/' + qtype + '\" blocked by ' + dns + ' (' + type + ')')
-#                                                            blockit = True
-#                                                            break
-#                                                        else:
-#                                                            log_info(tag + 'SafeDNS MONITOR: \"' + qname + '/' + qtype + '\" blocked by ' + dns + ' (' + type + ')')
-#
-#                                                    maxscore -= 1
-#
-#                                                else:
-#                                                    print '\nSAFEDNS DEFAULT RESPONSE:', qname, defaultresponse
-#                                                    print 'SAFEDNS', dns, 'RESPONSE:', qname, response
-#                                                    if response == defaultresponse:
-#                                                        if (debug >= 3): log_info(tag + 'SafeDNS: ' + dns + ' same \"' + qname + '/' + qtype + '\" then DEFAULT')
-#                                                        scorecount += 1
-#                                                    else:
-#                                                        if (debug >= 2): log_info(tag + 'SafeDNS: ' + dns + ' different \"' + qname + '/' + qtype + '\" then DEFAULT')
-#                                            else:
-#                                                if (debug >= 2): log_info(tag + 'SafeDNS: No response for \"' + qname + '/' + qtype + '\" using \"' + dns + '\"')
-#                                                maxscore -= 1
-#                                        else:
-#                                            if (debug >= 2): log_info(tag + 'SafeDNS: No nameservers for \"' + dns + '\"')
-#                                            maxscore -= 1
-#
-#
-#                                if not blockit:
-#                                    # Calculate score (percentage)
-#                                    score = 100 * scorecount/maxscore
-#                                    log_info(tag + 'SafeDNS: \"' + qname + '\" has ' + str(score) + '%% score')
-#
-#                                    if scorecount > 0 and maxscore > 0 and score > 0 and score < safescore:
-#                                        if safednsblock:
-#                                            log_info(tag + 'SafeDNS HIT: \"' + qname + '/' + qtype + '\" (Score: ' + str(score) + '%% of DEFAULT)')
-#                                            blockit = True
-#                                        else:
-#                                            log_info(tag + 'SafeDNS MONITOR: \"' + qname + '/' + qtype + '\" (Score: ' + str(score) + '%% of DEFAULT)')
-#
-#                            else:
-#                                if (debug >= 2): log_info(tag + 'SafeDNS: No response for \"' + qname + '/' + qtype + '\" using \"DEFAULT\"')
-#
-#                        else:
-#                            if (debug >= 2): log_info(tag + 'SafeDNS: No nameservers for \"DEFAULT\"')
-
-                else:
+                if in_list(qname, 'black', 'QUERY', qtype):
                     blockit = True
 
                     # Create response
@@ -1799,6 +1788,12 @@ def operate(id, event, qstate, qdata):
                     # Get query-name and type and see if it is in cache already
                     qname = qstate.qinfo.qname_str.rstrip('.').lower()
                     if qname:
+                        # catchall if it is a command
+                        if cip == '127.0.0.1' and (qname.endswith(commandtld)):
+                            qstate.return_rcode = RCODE_NXDOMAIN
+                            qstate.ext_state[id] = MODULE_FINISHED
+                            return True
+
                         qtype = qstate.qinfo.qtype_str.upper()
                         if (debug >= 2): log_info(tag + 'Starting on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
@@ -1860,10 +1855,16 @@ def operate(id, event, qstate, qdata):
 
                                                         # If we have a name, process it
                                                         if name:
+                                                            if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ') (TTL:' + str(rep.ttl) + ')')
+
                                                             if collapse and firstname and type in ('A', 'AAAA'):
                                                                 lastname[name] = type
 
-                                                            if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ') (TTL:' + str(rep.ttl) + ')')
+                                                            if safedns and type in ('A', 'AAAA'):
+                                                                asn = check_asn(dname, type, name)
+                                                                if not asn and (asn != 'NoASN') and safednsblock:
+                                                                    blockit = True
+                                                                    break
 
                                                             # Not Whitelisted?
                                                             if not in_list(name, 'white', 'RESPONSE', type):
