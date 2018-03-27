@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.75-20180327 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.76-20180327 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -126,6 +126,8 @@ cwhitelist6 = pytricia.PyTricia(128) # IPv6 whitelist
 rblacklist = dict() # Regex blacklist (maybe replace with set()?)
 rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 excludelist = dict() # Domain excludelist
+asnwhitelist = dict() # ASN Whitelist
+asnblacklist = dict() # ASN Blacklist
 
 # Cache
 cachesize = 5000
@@ -223,6 +225,9 @@ ipregex = regex.compile('^(' + ip4regex + '|' + ip6regex +')', regex.I)
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
 
+# Regex for AS(N) number
+asnregex = regex.compile('^AS[0-9]+$')
+
 # Regex to match domains/hosts in lists
 #isdomain = regex.compile('^[a-z0-9\.\-]+$', regex.I) # According RFC, Internet only
 isdomain = regex.compile('^[a-z0-9_\.\-]+$', regex.I) # According RFC plus underscore, works everywhere
@@ -238,12 +243,13 @@ exclude = regex.compile(defaultexclude, regex.I)
 #wwwregex = regex.compile('^(https*|ftps*|www+)[0-9]*\..*\..*$', regex.I)
 
 # SafeDNS - HIGHLY EXPERIMENTAL AND WILL BREAK STUFF, USE AT OWN RISK !!!
+# Based on idea/code of NavyTitanium: https://github.com/NavyTitanium/Dns-online-filter
 safedns = True
 safednsblock = True # When False, only monitoring/reporting
+safescore = 50 # (percentage)
 nameservers = dict()
 nameserverslist = '/etc/unbound/safenameservers'
 asndb = pyasn.pyasn('/etc/unbound/ipasn.dat')
-asncache = TTLCache(cachesize, cachettl)
 
 ##########################################################################################
 
@@ -526,6 +532,8 @@ def load_lists(force, savelists):
     global cwhitelist4
     global cblacklist6
     global cwhitelist6
+    global asnwhitelist
+    global asnblacklist
     global tldfile
     global excludelist
     global exclude
@@ -615,13 +623,13 @@ def load_lists(force, savelists):
         age = file_exist(whitesave)
         if age and age < maxlistage and not disablewhitelist:
             log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist, True, 'white')
+            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist, whitelist, asnwhitelist, True, 'white')
             readwhite = False
 
         age = file_exist(blacksave)
         if age and age < maxlistage:
             log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist, True, 'black')
+            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist, blacklist, asnblacklist, True, 'black')
             readblack = False
 
     addtoblack = dict()
@@ -736,7 +744,7 @@ def load_lists(force, savelists):
                                                                 if not exclude.match(line):
                                                                     matchentry = regex.match(fregex, line, regex.I)
                                                                     if matchentry:
-                                                                        for placeholder in ['domain', 'entry', 'ip', 'line', 'regex']:
+                                                                        for placeholder in ['asn', 'domain', 'entry', 'ip', 'line', 'regex']:
                                                                             try:
                                                                                 entry = matchentry.group(placeholder)
                                                                             except:
@@ -770,10 +778,10 @@ def load_lists(force, savelists):
 
                             if file_exist(listfile) >= 0:
                                 if bw == 'black':
-                                    read_lists(id, listfile, rblacklist, cblacklist, blacklist, force, bw)
+                                    read_lists(id, listfile, rblacklist, cblacklist, blacklist, asnblacklist, force, bw)
                                 elif bw == 'white':
                                     if not disablewhitelist:
-                                        read_lists(id, listfile, rwhitelist, cwhitelist, whitelist, force, bw)
+                                        read_lists(id, listfile, rwhitelist, cwhitelist, whitelist, asnwhitelist, force, bw)
                                 elif bw == 'exclude':
                                     excount = 0
                                     try:
@@ -851,12 +859,14 @@ def load_lists(force, savelists):
     regexcount = str(len(rblacklist)/3)
     ipcount = str (len(cblacklist))
     domaincount = str(len(blacklist))
-    log_info(tag + 'BlackList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs and ' + domaincount + ' DOMAINS')
+    asncount = str(len(asnblacklist))
+    log_info(tag + 'BlackList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs, ' + domaincount + ' DOMAINS and ' + asncount + ' ASNs')
 
     regexcount = str(len(rwhitelist)/3)
     ipcount = str (len(cwhitelist))
     domaincount = str(len(whitelist))
-    log_info(tag + 'WhiteList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs and ' + domaincount + ' DOMAINS')
+    asncount = str(len(asnwhitelist))
+    log_info(tag + 'WhiteList Totals: ' + regexcount + ' REGEXES, ' + ipcount + ' IPs/CIDRs, ' + domaincount + ' DOMAINS and ' + asncount + ' ASNs')
 
     # Save processed list for distribution
     write_out(whitesave, blacksave)
@@ -891,7 +901,7 @@ def add_exclusion(dlist, elist, listname):
 
 
 # Read file/list
-def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
+def read_lists(id, name, regexlist, iplist, domainlist, asnlist, force, bw):
     tag = 'DNS-FIREWALL LISTS: '
 
     orgid = id
@@ -905,6 +915,7 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                 regexcount = orgregexcount
                 ipcount = 0
                 domaincount = 0
+                asncount = 0
                 skipped = 0
                 total = 0
 
@@ -930,6 +941,18 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                             except:
                                 log_err(tag + name + ': Skipped invalid line/regex \"' + entry + '\"')
                                 pass
+
+                        elif (asnregex.match(entry.upper())):
+                            if checkresponse:
+                                entry = entry.upper()
+                                if entry in asnlist:
+                                    if asnlist[entry].find(id) == -1:
+                                        asnlist[entry] = asnlist[entry] + ', ' + id
+
+                                    skipped += 1
+                                else:
+                                    asnlist[entry] = id
+                                    asncount += 1
 
                         elif (ipregex.match(entry)):
                             # It is an IP
@@ -999,8 +1022,8 @@ def read_lists(id, name, regexlist, iplist, domainlist, force, bw):
                             skipped += 1
 
                 if (debug >= 2): log_info(tag + 'Processed ' + str(total) + ' entries and skipped ' + str(skipped) + ' (existing/invalid) ones from \"' + id + '\"')
-                if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRS and ' + str(domaincount) + ' DOMAINS from ' + bw + '-file/list \"' + name + '\"')
-                if (debug >= 2): log_info(tag + 'Total ' + str(len(regexlist)/3) + ' REGEXES, ' + str(len(iplist)) + ' CIDRS and ' + str(len(domainlist)) + ' DOMAINS in ' + bw + '-list')
+                if (debug >= 1): log_info(tag + 'Fetched ' + str(regexcount-orgregexcount) + ' REGEXES, ' + str(ipcount) + ' CIDRs, ' + str(domaincount) + ' DOMAINS and ' + str(asncount) + ' ASNs from ' + bw + '-file/list \"' + name + '\"')
+                if (debug >= 2): log_info(tag + 'Total ' + str(len(regexlist)/3) + ' REGEXES, ' + str(len(iplist)) + ' CIDRs, ' + str(len(domainlist)) + ' DOMAINS and ' + str(len(asnlist)) + ' ASNs in ' + bw + '-list')
 
                 return True
 
@@ -1311,6 +1334,11 @@ def write_out(whitefile, blackfile):
                 f.write(line + '\t' + whitelist[line])
                 f.write('\n')
 
+            f.write('### WHITELIST ASN ###\n')
+            for a in asnwhitelist.keys():
+                f.write(a + '\t' + asnwhitelist[a])
+                f.write('\n')
+
             list4, list6 = split_46(cwhitelist)
             f.write('### WHITELIST IPv4 ###\n')
             for a in list4.keys():
@@ -1337,6 +1365,11 @@ def write_out(whitefile, blackfile):
             f.write('### BLACKLIST DOMAINS ###\n')
             for line in dom_sort(blacklist.keys()):
                 f.write(line + '\t' + blacklist[line])
+                f.write('\n')
+
+            f.write('### BLACKLIST ASN ###\n')
+            for a in asnblacklist.keys():
+                f.write(a + '\t' + asnblacklist[a])
                 f.write('\n')
 
             list4, list6 = split_46(cblacklist)
@@ -1658,44 +1691,56 @@ def inform_super(id, qstate, superqstate, qdata):
 def check_asn(qname, type, ip):
     tag = 'DNS-FIREWALL ASN: '
 
-    if not ip in asncache:
-        asn = asndb.lookup(ip)
-        if asn:
-            baseasn = str(asn[0])
+    asn = asndb.lookup(ip)
+    if asn:
+        baseasn = 'AS' + str(asn[0])
+        if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\"')
+        if not baseasn in asnwhitelist:
+            if not baseasn in asnblacklist:
 
-            resolver = dns.resolver.Resolver(configure=False)
-            resolver.lifetime = 3
-            resolver.timeout = 2
+                resolver = dns.resolver.Resolver(configure=False)
+                resolver.lifetime = 3
+                resolver.timeout = 2
 
-            for ns in nameservers.keys():
-                if (debug >= 2): log_info(tag + 'Checking \"' + qname + '\" Base-ASN: \"' + baseasn + '\" against ' + ns)
+                total = 0
+                count = 0
 
-                resolver.nameservers = nameservers[ns].split(',')
+                for ns in nameservers.keys():
+                    if (debug >= 3): log_info(tag + 'Checking \"' + qname + '\" Base-ASN: \"' + baseasn + '\" against ' + ns)
 
-                response = False
-                try:
-                    response = resolver.query(qname, type)
-                except BaseException as err:
-                    log_err('ASN-DNS resolution error ' + str(err))
+                    resolver.nameservers = nameservers[ns].split(',')
 
-                if response:
-                    for answer in response:
-                       ip2 = answer.address
-                       asn = asndb.lookup(ip2)
-                       if asn:
-                           asn = str(asn[0])
-                           if baseasn != asn:
-                               if (debug >= 2): log_info(tag + 'HIT \"' + qname + '\" Base-ASN: \"' + baseasn + '\" <> ' + ns + ': \"' + asn + '\"')
-                               #print qname, ns, asndb.get_as_prefixes(asn)
-                               return False
+                    response = False
+                    try:
+                        response = resolver.query(qname, type)
+                    except BaseException as err:
+                        log_err('ASN-DNS resolution error ' + str(err))
 
-            if (debug >= 2): log_info(tag + 'Adding \"' + qname + '\" Base-ASN: \"' + baseasn + '\" to ASN-Cache')
-            asncache[ip] = baseasn
+                    if response:
+                        for answer in response:
+                           total += 1
+                           ip2 = answer.address
+                           asn = asndb.lookup(ip2)
+                           if asn:
+                               asn = 'AS' + str(asn[0])
+                               if baseasn == asn:
+                                   count += 1
+                               else:
+                                   if (debug >= 2): log_info(tag + 'HIT \"' + qname + '\" Base-ASN: \"' + baseasn + '\" <> ' + ns + ': \"' + asn + '\"')
+
+                score = int('{0:.0f}'.format((float(count) / float(total) * 100)))
+                if score >= safescore:
+                    if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\" Score: ' + str(score) + ' >= ' + str(safescore))
+                    return baseasn
+                else:
+                    if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\" Score: ' + str(score) + ' < ' + str(safescore))
+                    return False
+            else:
+                if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" Base-ASN: \"' + baseasn + '\" (' + asnblacklist[baseasn] + ')') 
+                return False
+        else:
+            if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" Base-ASN: \"' + baseasn + '\" (' + asnwhitelist[baseasn] + ')') 
             return baseasn
-
-    else:
-        if (debug >= 2): log_info(tag + 'Found \"' + qname + '\" ASN-Cache (' + asncache[ip] + ')')
-        return asncache[ip]
 
     return 'NoASN'
 
@@ -1863,6 +1908,7 @@ def operate(id, event, qstate, qdata):
                                                             if safedns and type in ('A', 'AAAA'):
                                                                 asn = check_asn(dname, type, name)
                                                                 if not asn and (asn != 'NoASN') and safednsblock:
+                                                                    if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\"')
                                                                     blockit = True
                                                                     break
 

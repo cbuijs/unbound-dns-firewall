@@ -10,22 +10,20 @@
 /^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/	Chris-Regex-White
 /^(.*\.)*itunes(essentials|festivals|match|su)\.com$/	Chris-Regex-White
 /^account\..*$/	Chris-Regex-White
+/^.*((?!\._udp).)*.*\.1\.168\.192\.in-addr\.arpa$/	Chris-Regex-White
 ### WHITELIST DOMAINS ###
 internetbank.armbusinessbank.am	Adguard-Banks
 money.idram.am	Adguard-Banks
 online.inecobank.am	Adguard-Banks
 online.procreditbank.am	Adguard-Banks
 ibanking.vtb.am	Adguard-Banks
-1.168.192.in-addr.arpa	Chris-White
 online.bankaustria.at	Adguard-Banks
-ce5.at	Dshield-Whitelist
 banking.co.at	Adguard-Banks
 banking.raiffeisen.at	Adguard-Banks
 sparkasse.at	Adguard-Banks
 banksa.com.au	Adguard-Banks
 online.beyondbank.com.au	Adguard-Banks
 commbank.com.au	Adguard-Banks
-eliteoz.com.au	Dshield-Whitelist
 hsbc.com.au	Adguard-Banks
 migs.mastercard.com.au	Adguard-Banks
 nab.com.au	Adguard-Banks
@@ -93,7 +91,6 @@ signin.ebay.ca	Adguard-Banks
 eqbank.ca	Adguard-Banks
 cra-arc.gc.ca	Adguard-Sensistive
 hsbc.ca	Adguard-Banks
-mdidesign.ca	Dshield-Whitelist
 simpletax.ca	Adguard-Banks
 tangerine.ca	Adguard-Banks
 vtele.ca	EasyList-French-White
@@ -129,7 +126,6 @@ savefile.co	EasyList-French-White
 telechargementz.co	EasyList-French-White
 1password.com	Adguard-Sensistive
 2checkout.com	Adguard-Banks
-dl.360safe.com	Dshield-Whitelist
 4shared.com	FanBoy-Complete-White
 53.com	Adguard-Banks
 8pecxstudios.com	Adguard-FireFox
@@ -175,7 +171,6 @@ axisbank.com	Adguard-Banks
 babasbrew.com	Chris-White
 bac-assets.com	Chris-White
 badips.com	Chris-White
-baidu.com	Dshield-Whitelist
 online.baltinvest.com	Adguard-Banks
 ui.bamstatic.com	FanBoy-Complete-White
 bancomer.com	Adguard-Banks
@@ -265,7 +260,6 @@ api.crunchyroll.com	Adguard-Android
 secureacceptance.cybersource.com	Adguard-Banks
 dashlane.com	Adguard-Sensistive
 db.com	Adguard-Banks
-demon-networks.com	Dshield-Whitelist
 acikdeniz.denizbank.com	Adguard-Banks
 basvuru.denizbank.com	Adguard-Banks
 static.depositfiles.com	FanBoy-Complete-White
@@ -342,7 +336,6 @@ greensill-bank.com	Adguard-Banks
 webid2.gs.com	Adguard-Banks
 connectivitycheck.gstatic.com	Chris-White
 play-music.gstatic.com	Chris-White
-guiltfreefoodguide.com	Dshield-Whitelist
 harrisbank.com	Adguard-Banks
 hdfcbank.com	Adguard-Banks
 web.hellenicbank.com	Adguard-Banks
@@ -391,7 +384,6 @@ online.kasikornbankgroup.com	Adguard-Banks
 correqts.kedrbank.com	Adguard-Banks
 secure.koopbank.com	Adguard-Banks
 kreditprombank.com	Adguard-Banks
-labarchitects.com	Dshield-Whitelist
 lastpass.com	Chris-White, Adguard-Android, Adguard-Sensistive
 leboutique.com	Adguard-Banks
 leomoney.com	Adguard-Banks
@@ -423,6 +415,7 @@ messagelabs.com	Chris-White
 personal.metrobankdirect.com	Adguard-Banks
 metzler.com	Adguard-Banks
 api.cognitive.microsoft.com	Adguard-Android
+officecdn.microsoft.com	Chris-White
 mobinozer.com	EasyList-French-White
 acs2.3ds.modirum.com	Adguard-Banks
 acs2.rosbank.modirum.com	Adguard-Banks
@@ -518,7 +511,6 @@ rbcroyalbank.com	Adguard-Banks
 rbsdigital.com	Adguard-Banks
 rbsinternational.com	Adguard-Banks
 access.rbsm.com	Adguard-Banks
-www.rcollard.com	Dshield-Whitelist
 s.reembed.com	FanBoy-Complete-White
 static.reembed.com	FanBoy-Complete-White
 rfcu.com	Adguard-Banks
@@ -582,7 +574,6 @@ stripe.com	Adguard-Banks
 ads.stumbleupon.com	FanBoy-Complete-White
 player.sundaysky.com	FanBoy-Complete-White
 api.surfeasy.com	Adguard-Issues
-syandus.com	Dshield-Whitelist
 productserver.sygic.com	Adguard-Android
 tac.com	Chris-White
 talosintel.com	Chris-White
@@ -600,8 +591,7 @@ thisissand.com	Adguard-Android
 i.tochka.com	Adguard-Banks
 my.tochka.com	Adguard-Banks
 z.tochka.com	Adguard-Banks
-navcloud.tomtom.com	Adguard-Android
-lcms.services.tomtom.com	Adguard-Android
+tomtom.com	Chris-White
 touchbank.com	Adguard-Banks
 ibank.transcapital.com	Adguard-Banks
 img.travidia.com	FanBoy-Complete-White
@@ -2825,7 +2815,6 @@ platron.ru	Adguard-Banks
 ibank.plus-bank.ru	Adguard-Banks
 my.pochtabank.ru	Adguard-Banks
 poidem.ru	Adguard-Banks
-vlab.pp.ru	Dshield-Whitelist
 ibank.prbb.ru	Adguard-Banks
 prbkbr-ibank2.ru	Adguard-Banks
 ibank.premcred.ru	Adguard-Banks
@@ -3243,6 +3232,8 @@ fnb.co.za	Adguard-Banks
 nedbank.co.za	Adguard-Banks
 standardbank.co.za	Adguard-Banks
 hosts.ubuntu101.co.za	Chris-White
+### WHITELIST ASN ###
+AS16625	Chris-White-ASN
 ### WHITELIST IPv4 ###
 8.8.4.4/32	Chris-White
 8.8.8.8/32	Chris-White

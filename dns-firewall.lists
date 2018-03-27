@@ -73,6 +73,7 @@ SpamHaus-Top10-BotNet	black	https://www.spamhaus.org/statistics/botnet-isp/	/etc
 SpamHaus-Drop	black	https://www.spamhaus.org/drop/drop.txt	/etc/unbound/spamhaus-drop.list	86400	@IP
 SpamHaus-Edrop	black	https://www.spamhaus.org/drop/edrop.txt	/etc/unbound/spamhaus-edrop.list	86400	@IP
 SpamHaus-DropV6	black	https://www.spamhaus.org/drop/dropv6.txt	/etc/unbound/spamhaus-dropv6.list	86400	@IP
+SpamHaus-ASNDrop	black	https://www.spamhaus.org/drop/asndrop.txt	/etc/unbound/spamhaus-asndrop.list	86400	@ASN
 
 Steven-Black-Hosts	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts	/etc/unbound/stevenblack.list	86400	@HOST0
 

@@ -1,6 +1,7 @@
 DEFAULT	^(?P<line>.*)$
 ADBLOCK-BLACK	^\|\|(?P<domain>[a-zA-Z0-9\.\-]+)\^([$][^=~]+)*$
 ADBLOCK-WHITE	^\@\@\|\|(?P<domain>[a-zA-Z0-9\.\-]+)\^([$][^=~]+)*$
+ASN	^(?P<asn>AS[0-9]+)(\s.*)$
 URLCSV2	^[^,]+,[a-z]+://(?P<domain>[a-zA-Z0-9\.\-]+)[/]*,
 DNSMASQ-ADDRESS	^address=/(?P<domain>[a-zA-Z0-9\.\-]+)/
 DOMAIN	^(?P<domain>[a-zA-Z0-9\.\-]+)([,\s].*)*$
