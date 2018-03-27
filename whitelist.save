@@ -207,6 +207,7 @@ cp.bluesnap.com	Adguard-Banks
 bmo.com	Adguard-Banks
 bmoharris.com	Adguard-Banks
 bnpparibas.com	Adguard-Banks
+bobibanking.com	Adguard-Banks
 bofaml.com	Chris-White
 secure.booking.com	Adguard-Banks
 boursorama.com	Adguard-Banks
@@ -3261,8 +3262,4 @@ hosts.ubuntu101.co.za	Chris-White
 213.135.106.194/32	Adguard-Banks
 213.230.210.230/32	Chris-White
 ### WHITELIST IPv6 ###
-2a00:5a60::ad1:ff/128	Chris-White
-2a00:5a60::ad2:ff/128	Chris-White
-2a00:5a60::bad1:ff/128	Chris-White
-2a00:5a60::bad2:ff/128	Chris-White
 ### WHITELIST EOF ###
