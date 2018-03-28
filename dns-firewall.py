@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.81-20180327 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.85-20180328 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -192,6 +192,9 @@ maintenance = 100000
 # Automatic generated reverse entries for IP-Addresses that are listed
 autoreverse = True
 
+# Automatic add non-hits (both black or whitelists) to whitelist cache (only cache!)
+autowhitelist = False # !!! Leave False
+
 # Block IPv6 queries/responses
 blockv6 = True
 
@@ -246,10 +249,11 @@ exclude = regex.compile(defaultexclude, regex.I)
 # Based on idea/code of NavyTitanium: https://github.com/NavyTitanium/Dns-online-filter
 safedns = True
 safednsblock = True # When False, only monitoring/reporting
-safescore = 50 # (percentage)
+safescore = 65 # (percentage)
 nameservers = dict()
 nameserverslist = '/etc/unbound/safenameservers'
 asndb = pyasn.pyasn('/etc/unbound/ipasn.dat')
+asnipcache = TTLCache(cachesize, cachettl)
 
 ##########################################################################################
 
@@ -367,18 +371,22 @@ def add_to_cache(bw, name):
     if (bw == 'black'):
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to black-cache')
        blackcache[name] = True
+       whitecache.pop(name, False)
 
        if addarpa:
            if (debug >= 2): log_info(tag + 'Auto-Generated/Added \"' + addarpa + '\" (' + name + ') to black-cache')
            blackcache[addarpa] = True
+           whitecache.pop(addarpa, False)
 
     else:
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to white-cache')
        whitecache[name] = True
+       blackcache.pop(name, False)
 
        if addarpa:
            if (debug >= 2): log_info(tag + 'Auto-Generated/Added \"' + addarpa + '\" (' + name + ') to white-cache')
            whitecache[addarpa] = True
+           blackcache.pop(addarpa, False)
 
     return True
 
@@ -1688,10 +1696,10 @@ def inform_super(id, qstate, superqstate, qdata):
 
 
 # Check ASN
-def check_asn(qname, type):
-    tag = 'DNS-FIREWAL: '
+def check_asn(qname, type, baseip):
+    tag = 'DNS-FIREWAL ASN: '
 
-    print "\nCHECK-ASN:", qname
+    #print "\nCHECK-ASN:", qname
 
     resolver = dns.resolver.Resolver(configure=False)
     resolver.lifetime = 3
@@ -1699,7 +1707,19 @@ def check_asn(qname, type):
 
     hits = dict()
 
-    total = 0
+    baseasn = asndb.lookup(baseip)
+    if baseasn:
+        baseasn = 'AS' + str(baseasn[0])
+        if baseasn in asnwhitelist:
+            if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" BASE-ASN: \"' + baseasn + '\" (' + asnwhitelist[baseasn] + ')') 
+            return baseasn
+        elif baseasn in asnblacklist:
+            if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" BASE-ASN: \"' + baseasn + '\" (' + asnblacklist[baseasn] + ')') 
+            return False
+    else:
+        baseasn = 'AS-NONE'
+
+    hits[baseasn] = 1
 
     for ns in nameservers.keys():
         resolver.nameservers = nameservers[ns].split(',')
@@ -1707,43 +1727,65 @@ def check_asn(qname, type):
         response = False
         try:
             response = resolver.query(qname, type)
+        except (dns.resolver.NXDOMAIN):
+            response = 'NXDOMAIN'
+        except (dns.resolver.NoAnswer):
+            response = 'NOANSWER'
         except BaseException as err:
+            response = 'ERROR'
             log_err('ASN-DNS resolution error ' + str(err))
 
-        if response:
-            for answer in response:
-               ip = str(answer.address)
-               if ip:
-                   asn = asndb.lookup(ip)
-                   if asn:
-                       total += 1
-                       asn = 'AS' + str(asn[0])
-                       if (debug >=3): log_info(tag + '\"' + qname + '/' + ip + ' ' + ns + ' ASN: \"' + asn + '\"')
-                       if asn in asnwhitelist:
-                           if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnwhitelist[asn] + ')') 
-                           print "-- ASN-WHITELISTED:", qname, ip, asn
-                           return asn
-                       elif asn in asnblacklist:
-                           if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnblacklist[asn] + ')') 
-                           print "-- ASN-BLACKLISTED:", qname, ip, asn
-                           return False
+        if not response:
+            response = 'NOANSWER'
 
-                       if asn in hits:
-                           hits[asn] += 1
-                       else:
-                           hits[asn] = 1
+        if response in ('ERROR', 'NXDOMAIN', 'NOANSWER'):
+            if response in hits:
+                hits[response] += 1
+            else:
+                hits[response] = 1
+        
+        else:
+            for answer in response:
+                ip = str(answer.address)
+                if ip:
+                    asn = asndb.lookup(ip)
+                    if not asn:
+                        asn = 'AS-NONE'
+                    else:
+                        asn = 'AS' + str(asn[0])
+
+                    if (debug >=3): log_info(tag + '\"' + qname + '/' + ip + ' ' + ns + ' ASN: \"' + asn + '\"')
+                    #print "-- ASN-DNS-RESPONSE:",qname,ns,asn
+                    if asn in asnwhitelist:
+                        if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnwhitelist[asn] + ')') 
+                        return asn
+                    elif asn in asnblacklist:
+                        if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnblacklist[asn] + ')') 
+                        return False
+
+                    if asn in hits:
+                        hits[asn] += 1
+                    else:
+                        hits[asn] = 1
 
     if hits:
         baseasn = max(hits, key=hits.get)
+
+        total = sum(hits.values())
         count = hits[baseasn]
-        score = int('{0:.0f}'.format((float(count) / float(total) * 100)))
-        print "-- ASN-SCORE:", qname, baseasn, score
+
+        if count < total:
+            score = int('{0:.0f}'.format((float(count) / float(total) * 100)))
+        else:
+            score = 100
+
         if score >= safescore:
             if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\" Score: ' + str(score) + ' >= ' + str(safescore))
+            #print "-- ASN-SCORE-SAFE:", qname, baseasn, count, total, score, hits
             return baseasn
         else:
             if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\" Score: ' + str(score) + ' < ' + str(safescore))
-            print "-- ASN-Blocked", qname, baseasn, score, total, hits
+            #print "-- ASN-SCORE-BLOCKED:", qname, baseasn, count, total, score, hits
             return False
 
     return 'NoASN'
@@ -1753,7 +1795,6 @@ def check_asn(qname, type):
 def operate(id, event, qstate, qdata):
     tag = 'DNS-FIREWALL INIT: '
 
-    #global tag
     global tagcount
 
     tagcount += 1
@@ -1906,25 +1947,33 @@ def operate(id, event, qstate, qdata):
                                                         if name:
                                                             if (debug >= 2): log_info(tag + 'Checking \"' + dname + '\" -> \"' + name + '\" (RR:' + type + ') (TTL:' + str(rep.ttl) + ')')
 
-                                                            if collapse and firstname and type in ('A', 'AAAA'):
-                                                                lastname[name] = type
-
                                                             # Not Whitelisted?
+                                                            notwhitelisted = True
                                                             if not in_list(name, 'white', 'RESPONSE', type):
                                                                 # Blacklisted?
                                                                 if in_list(name, 'black', 'RESPONSE', type):
                                                                     blockit = True
                                                                     break
-                                                                elif type in ('A', 'AAAA'):
-                                                                    # SafeDNS ASN Check
-                                                                    asn = check_asn(dname, type)
-                                                                    if not asn:
-                                                                        if safednsblock:
-                                                                            if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", BLOCKING!')
-                                                                            blockit = True
-                                                                            break
-                                                                        else:
-                                                                            if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", MONITORING!')
+                                                            else:
+                                                                notwhitelisted = False
+
+                                                            if safedns and notwhitelisted and type in ('A', 'AAAA'):
+                                                                # SafeDNS ASN Check
+                                                                asn = check_asn(dname, type, name)
+                                                                if not asn:
+                                                                    if safednsblock:
+                                                                        if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", BLOCKING!')
+                                                                        blockit = True
+                                                                        break
+                                                                    else:
+                                                                        if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", MONITORING!')
+
+                                                            if collapse and firstname and type in ('A', 'AAAA'):
+                                                                lastname[name] = type
+
+                                                            if notwhitelisted and autowhitelist:
+                                                                if (debug >= 2): log_info(tag + 'Auto-Whitelisted \"' + qname + '\"')
+                                                                add_to_cache('white', name) # !!!! Maybe not, maybe have a "validated" cache instead
 
                                                     else:
                                                         # If not an A, AAAA, CNAME, MX, PTR, SOA or SRV we stop processing and passthru
@@ -2002,6 +2051,10 @@ def operate(id, event, qstate, qdata):
                                 qstate.return_msg.rep.security = 2
 
                                 qstate.return_rcode = RCODE_NOERROR
+
+                            if autowhitelist:
+                                if (debug >= 2): log_info(tag + 'Auto-Whitelisted \"' + qname + '\"')
+                                add_to_cache('white', qname) # !!!! Maybe not, maybe have a "validated" cache instead
 
                         if (debug >= 2): log_info(tag + 'Finished on RESPONSE for QUERY \"' + qname + '\" (RR:' + qtype + ')')
 
