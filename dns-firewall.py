@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.85-20180328 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.86-20180328 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -1699,8 +1699,6 @@ def inform_super(id, qstate, superqstate, qdata):
 def check_asn(qname, type, baseip):
     tag = 'DNS-FIREWAL ASN: '
 
-    #print "\nCHECK-ASN:", qname
-
     resolver = dns.resolver.Resolver(configure=False)
     resolver.lifetime = 3
     resolver.timeout = 2
@@ -1712,10 +1710,10 @@ def check_asn(qname, type, baseip):
         baseasn = 'AS' + str(baseasn[0])
         if baseasn in asnwhitelist:
             if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" BASE-ASN: \"' + baseasn + '\" (' + asnwhitelist[baseasn] + ')') 
-            return baseasn
+            return 100
         elif baseasn in asnblacklist:
             if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" BASE-ASN: \"' + baseasn + '\" (' + asnblacklist[baseasn] + ')') 
-            return False
+            return 0
     else:
         baseasn = 'AS-NONE'
 
@@ -1758,10 +1756,10 @@ def check_asn(qname, type, baseip):
                     #print "-- ASN-DNS-RESPONSE:",qname,ns,asn
                     if asn in asnwhitelist:
                         if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnwhitelist[asn] + ')') 
-                        return asn
+                        return 100
                     elif asn in asnblacklist:
                         if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnblacklist[asn] + ')') 
-                        return False
+                        return 0
 
                     if asn in hits:
                         hits[asn] += 1
@@ -1779,16 +1777,9 @@ def check_asn(qname, type, baseip):
         else:
             score = 100
 
-        if score >= safescore:
-            if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\" Score: ' + str(score) + ' >= ' + str(safescore))
-            #print "-- ASN-SCORE-SAFE:", qname, baseasn, count, total, score, hits
-            return baseasn
-        else:
-            if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN: \"' + baseasn + '\" Score: ' + str(score) + ' < ' + str(safescore))
-            #print "-- ASN-SCORE-BLOCKED:", qname, baseasn, count, total, score, hits
-            return False
+        return score
 
-    return 'NoASN'
+    return 100
 
 
 # Main beef/process
@@ -1959,14 +1950,21 @@ def operate(id, event, qstate, qdata):
 
                                                             if safedns and notwhitelisted and type in ('A', 'AAAA'):
                                                                 # SafeDNS ASN Check
-                                                                asn = check_asn(dname, type, name)
-                                                                if not asn:
+                                                                if (debug >= 2): log_info(tag + 'Starting SafeDNS-Check on \"' + dname + '\"')
+
+                                                                score = check_asn(dname, type, name)
+
+								if (debug >= 1): log_info(tag + 'SafeDNS-Score for \"' + dname + '\" is ' + str(score) + '%%')
+                                                                
+                                                                if score < safescore:
                                                                     if safednsblock:
-                                                                        if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", BLOCKING!')
+                                                                        if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", score below '+ str(safescore) + '%%, BLOCKING!')
                                                                         blockit = True
                                                                         break
                                                                     else:
-                                                                        if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", MONITORING!')
+                                                                        if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", score below '+ str(safescore) + '%%, MONITORING!')
+
+                                                                if (debug >= 2): log_info(tag + 'Finished SafeDNS-Check on \"' + dname + '\"')
 
                                                             if collapse and firstname and type in ('A', 'AAAA'):
                                                                 lastname[name] = type
