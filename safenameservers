@@ -1,15 +1,15 @@
 ### Don't include the DNS servers unbound is forwarding to if any.
-### Unbound resolution will provide the seed/base ASN.
+### Unbound resolution itself will provide the seed/base ASN.
 ###
 #Quad9	9.9.9.9,149.112.112.112
 Level-3	209.244.0.3,209.244.0.4
-#Level-3-Alt	4.2.2.1,4.2.2.2,4.2.2.3,4.2.2.4,4.2.2.5,4.2.2.6
-#Verizon-PVD	71.243.0.14,71.250.0.14
+Level-3-Alt	4.2.2.1,4.2.2.2,4.2.2.3,4.2.2.4,4.2.2.5,4.2.2.6
+Verizon-PVD	71.243.0.14,71.250.0.14
 Google	8.8.8.8,8.8.4.4
 ComodoSecure	8.26.56.26,8.20.247.20
 NortonConnectSafe	199.85.126.10,199.85.127.10
 #OpenDNS-FamilyShield	208.67.222.123,208.67.220.123
-OpenDNS	208.67.222.222,208.67.220.220
+OpenDNS	208.67.222.222,208.67.220.220,208.67.222.220,208.67.220.222
 #Adguard-DNS	176.103.130.130,176.103.130.131
 #Adguard-FamilyProtection	176.103.130.132,176.103.130.134
 VeriSign	64.6.64.6,64.6.65.6
