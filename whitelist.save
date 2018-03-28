@@ -2132,6 +2132,7 @@ advertising.oriel.io	FanBoy-Complete-White
 sbc.io	Chris-White
 suspect-networks.io	Chris-White
 u2s.io	EasyList-French-White
+speedport.ip	Adguard-Issues
 ib.bank-maskan.ir	Adguard-Banks
 ebanking.bankmellat.ir	Adguard-Banks
 bmi.ir	Adguard-Banks
@@ -2191,6 +2192,7 @@ fnb.com.lb	Adguard-Banks
 fas.li	EasyList-French-White
 llb.li	Adguard-Banks
 uploadx.link	EasyList-French-White
+local	Chris-White
 ebankas.danskebank.lt	Adguard-Banks
 ibank.lt	Adguard-Banks
 margevicius.lt	Chris-White
@@ -3233,6 +3235,7 @@ nedbank.co.za	Adguard-Banks
 standardbank.co.za	Adguard-Banks
 hosts.ubuntu101.co.za	Chris-White
 ### WHITELIST ASN ###
+AS20940	Chris-White-ASN
 AS16625	Chris-White-ASN
 ### WHITELIST IPv4 ###
 8.8.4.4/32	Chris-White
