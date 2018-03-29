@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.90-20180329 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.91-20180329 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -1444,8 +1444,9 @@ def aggregate_ip(iplist, listname):
                 children = iplist.children(ip)
                 if children:
                    for child in children:
-                        undupped.remove(child)
-                        if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip + ' in \"' + iplist[ip] + '\"')
+                        if child in undupped:
+                            undupped.remove(child)
+                            if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip + ' in \"' + iplist[ip] + '\"')
             except BaseException as err:
                 log_err(tag + str(err))
                 pass
