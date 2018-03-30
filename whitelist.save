@@ -2,7 +2,7 @@
 /^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Chris-Regex-White
 /^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Chris-Regex-White
 /^(imap|pop|smtp)\.gmail\.com$/	Chris-Regex-White
-/^(.*\.)*((?!font[s]*).)*\.googleapis\.com$/	Chris-Regex-White
+/^(.*\.)*(?!font[s]*)\.googleapis\.com$/	Chris-Regex-White
 /^(.*\.)*gvt[0-9]\.com$/	Chris-Regex-White
 /^(.*\.)*googleusercontent\.com$/	Chris-Regex-White
 /^(.*\.)*(apple|icloud|itunes)\.com$/	Chris-Regex-White
@@ -10,7 +10,7 @@
 /^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/	Chris-Regex-White
 /^(.*\.)*itunes(essentials|festivals|match|su)\.com$/	Chris-Regex-White
 /^account\..*$/	Chris-Regex-White
-/^.*((?!\._udp).)*.*\.1\.168\.192\.in-addr\.arpa$/	Chris-Regex-White
+/^.*(?!\._[a-z]+\.).*\.in-addr\.arpa$/	Chris-Regex-White
 ### WHITELIST DOMAINS ###
 internetbank.armbusinessbank.am	Adguard-Banks
 money.idram.am	Adguard-Banks
@@ -327,6 +327,10 @@ gmail.com	Chris-White
 go.com	Chris-White
 android.clients.google.com	Adguard-Android
 ssh.cloud.google.com	Adguard-Issues
+accountsettingsmobile-pa.googleapis.com	Adguard-Android
+androidpay-users-pa.googleapis.com	Adguard-Banks
+androidwearcloudsync-pa.googleapis.com	Adguard-Android
+trips-pa.googleapis.com	Adguard-Android
 googlecode.com	Chris-White
 googlecommerce.com	FanBoy-Complete-White
 googlevideo.com	Adguard-Android
@@ -554,6 +558,7 @@ api-merchants.skimlinks.com	FanBoy-Complete-White
 authentication-api.skimlinks.com	FanBoy-Complete-White
 pay.skrill.com	Adguard-Banks
 skype.com	Chris-White
+slack.com	Chris-White
 societegenerale.com	Adguard-Banks
 static.reverse.softlayer.com	Chris-White
 sonos.com	Chris-White
@@ -2287,7 +2292,6 @@ nflxvideo.net	Chris-White
 nbcume.sc.omtrdc.net	Chris-White
 bankofamerica.tt.omtrdc.net	Chris-White
 opera-proxy.net	Adguard-Issues
-powvideo.net	EasyList-French-White
 api.recaptcha.net	FanBoy-Complete-White
 root-servers.net	Chris-White
 i.taatta.net	Adguard-Banks
@@ -3235,8 +3239,6 @@ nedbank.co.za	Adguard-Banks
 standardbank.co.za	Adguard-Banks
 hosts.ubuntu101.co.za	Chris-White
 ### WHITELIST ASN ###
-AS20940	Chris-White-ASN
-AS16625	Chris-White-ASN
 ### WHITELIST IPv4 ###
 8.8.4.4/32	Chris-White
 8.8.8.8/32	Chris-White
