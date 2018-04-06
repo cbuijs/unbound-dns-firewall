@@ -28,13 +28,36 @@ migs.mastercard.com.au	Adguard-Banks
 nab.com.au	Adguard-Banks
 banking.westpac.com.au	Adguard-Banks
 my.gov.au	Adguard-Sensistive
+accessbank.az	Adguard-Banks
+afb.az	Adguard-Banks
+agbank.az	Adguard-Banks
+amrahbank.az	Adguard-Banks
+asb.az	Adguard-Banks
+azerturkbank.az	Adguard-Banks
+bankavrasiya.az	Adguard-Banks
+bankrespublika.az	Adguard-Banks
+banksilkway.az	Adguard-Banks
+btb.az	Adguard-Banks
+cbar.az	Adguard-Banks
+yapikredi.com.az	Adguard-Banks
 online.expressbank.az	Adguard-Banks
-payments.goldenpay.az	Adguard-Banks
+goldenpay.az	Adguard-Banks
 login.e-taxes.gov.az	Adguard-Banks
 hesab.az	Adguard-Banks
+ibar.az	Adguard-Banks
+kapitalbank.az	Adguard-Banks
 pay.millikart.az	Adguard-Banks
-ib.pashabank.az	Adguard-Banks
-onlineapp.unibank.az	Adguard-Banks
+muganbank.az	Adguard-Banks
+naxcivanbank.az	Adguard-Banks
+nbcbank.az	Adguard-Banks
+nikoil.az	Adguard-Banks
+pashabank.az	Adguard-Banks
+portmanat.az	Adguard-Banks
+turanbank.az	Adguard-Banks
+unibank.az	Adguard-Banks
+vtb.az	Adguard-Banks
+xalqbank.az	Adguard-Banks
+ziraatbank.az	Adguard-Banks
 argenta.be	Adguard-Banks
 belfius.be	Adguard-Banks
 bnpparibasfortis.be	Adguard-Banks
@@ -152,7 +175,7 @@ ally.com	Adguard-Banks
 altbank.com	Adguard-Banks
 amazon.com	Chris-White
 s3.amazonaws.com	Chris-White
-americanexpress.com	Chris-White
+americanexpress.com	Chris-White, Adguard-Banks
 ampproject.com	Chris-White
 android.com	Chris-White
 animes-mangas-ddl.com	EasyList-French-White
@@ -164,6 +187,7 @@ apcc.com	Chris-White
 apsiyon.com	Adguard-Banks
 secure5.arcot.com	Adguard-Banks
 ads.askgamblers.com	FanBoy-Complete-White
+atabank.com	Adguard-Banks
 auxmoney.com	Adguard-Banks
 avangate.com	Adguard-Banks
 axisbank.com	Adguard-Banks
@@ -178,7 +202,7 @@ online.bankirdom.com	Adguard-Banks
 bk.banklviv.com	Adguard-Banks
 saba.bankmelli-iran.com	Adguard-Banks
 bankofamerica.com	Chris-White, Adguard-Banks
-3ds.bankofbaku.com	Adguard-Banks
+bankofbaku.com	Adguard-Banks
 bankofbeirut.com	Adguard-Banks
 online.bankofcyprus.com	Adguard-Banks
 banorte.com	Adguard-Banks
@@ -336,6 +360,7 @@ greensill-bank.com	Adguard-Banks
 webid2.gs.com	Adguard-Banks
 connectivitycheck.gstatic.com	Chris-White
 play-music.gstatic.com	Chris-White
+gunaybank.com	Adguard-Banks
 harrisbank.com	Adguard-Banks
 hdfcbank.com	Adguard-Banks
 web.hellenicbank.com	Adguard-Banks
@@ -444,6 +469,7 @@ netteller.com	Adguard-Banks
 content-img.newsinc.com	FanBoy-Complete-White
 nflxext.com	Chris-White
 nordea.com	Adguard-Banks
+nwolb.com	Adguard-Banks
 internet.ocbc.com	Adguard-Banks
 office365.com	Chris-White
 secure.ogone.com	Adguard-Banks
@@ -3216,6 +3242,7 @@ passport.yandex.ua	Adguard-Sensistive
 bankofscotland.co.uk	Adguard-Banks
 barclaycard.co.uk	Adguard-Banks
 barclays.co.uk	Adguard-Banks
+co-operativebank.co.uk	Adguard-Banks
 signin.ebay.co.uk	Adguard-Banks
 halifax-online.co.uk	Adguard-Banks
 hsbc.co.uk	Adguard-Banks
@@ -3244,6 +3271,8 @@ AS10782	Chris-White-ASN
 AS16625	Chris-White-ASN
 AS20940	Chris-White-ASN
 ### WHITELIST IPv4 ###
+1.0.0.1/32	Chris-White
+1.1.1.1/32	Chris-White
 8.8.4.4/32	Chris-White
 8.8.8.8/32	Chris-White
 9.9.9.9/32	Chris-White
