@@ -31,7 +31,7 @@ EasyList-French	black	https://easylist-downloads.adblockplus.org/liste_fr.txt	/e
 EasyList-French-White	white	/etc/unbound/easylist-french.list.download	/etc/unbound/easylist-french-white.list	86400	@ADBLOCK-WHITE
 
 FanBoy-Complete	black	https://fanboy.co.nz/r/fanboy-complete.txt	/etc/unbound/fanboy.list	86400	@ADBLOCK-BLACK
-FanBoy-Complete-White	white	/etc/unbound/fanboy.list.download	/etc/unbound/fanboy-white.list	86400	@ADBLOCK-WHITE	^.*[,\$]generic(block|hide).*$
+FanBoy-Complete-White	white	/etc/unbound/fanboy.list.download	/etc/unbound/fanboy-white.list	86400	@ADBLOCK-WHITE	@ADBLOCK-EXCLUDE
 
 PipeRun	black	https://raw.githubusercontent.com/piperun/iploggerfilter/master/filterlist	/etc/unbound/piperun.list	86400	@ADBLOCK-BLACK
 
@@ -55,7 +55,7 @@ FireHol1	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master
 FireHol2	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset	/etc/unbound/firehol2.list	86400	@IP
 FireHol3	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset	/etc/unbound/firehol3.list	86400	@IP
 #FireHol4	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level4.netset	/etc/unbound/firehol4.list	86400	@IP
-FireHol-Abusers	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset	/etc/unbound/firehol-abusers.list	86400	@IP
+FireHol-Abusers	black	https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_30d.netset	/etc/unbound/firehol-abusers.list	86400	@IP
 
 BaddBoys	black	https://raw.githubusercontent.com/mitchellkrogza/Badd-Boyz-Hosts/master/hosts	/etc/unbound/baddboyz.list	86400	@HOST0
 #Krogza-False-Positive	exclude	https://raw.githubusercontent.com/mitchellkrogza/CENTRAL-REPO.Dead.Inactive.Whitelisted.Domains.For.Hosts.Projects/master/DOMAINS-whitelist.txt	/etc/unbound/krogza-fp.list	86400	@DOMAIN
@@ -77,8 +77,8 @@ SpamHaus-ASNDrop	black	https://www.spamhaus.org/drop/asndrop.txt	/etc/unbound/sp
 
 Steven-Black-Hosts	black	https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts	/etc/unbound/stevenblack.list	86400	@HOST0
 
-SquidBlackList-Ads	black	https://www.squidblacklist.org/downloads/dg-ads.acl	/etc/unbound/squidblacklist-ads.list	86400	@DOMAIN
-SquidBlackList-Malicious	black	https://www.squidblacklist.org/downloads/dg-malicious.acl	/etc/unbound/squidblacklist-malicious.list	86400	@DOMAIN
+#SquidBlackList-Ads	black	https://www.squidblacklist.org/downloads/dg-ads.acl	/etc/unbound/squidblacklist-ads.list	86400	@DOMAIN
+#SquidBlackList-Malicious	black	https://www.squidblacklist.org/downloads/dg-malicious.acl	/etc/unbound/squidblacklist-malicious.list	86400	@DOMAIN
 
 Suspect-Networks	black	https://suspect-networks.io/downloads/suspect_networks.txt	/etc/unbound/suspect-networks.list	86400	@IP
 
@@ -102,16 +102,16 @@ ZeusTracker-BadDomains	black	https://zeustracker.abuse.ch/blocklist.php?download
 ZeusTracker-BadIPs	black	https://zeustracker.abuse.ch/blocklist.php?download=badips	/etc/unbound/zeus-badips.list	86400	@IP
 Feado-Domains	black	https://feodotracker.abuse.ch/blocklist/?download=domainblocklist	/etc/unbound/feado-domains.list	86400	@DOMAIN
 Feado-IPs	black	https://feodotracker.abuse.ch/blocklist/?download=ipblocklist	/etc/unbound/feado-ips.list	86400	@IP
-#SSL-BL	black	https://sslbl.abuse.ch/blacklist/sslipblacklist.csv	/etc/unbound/ssl-blacklist.list	86400	@IP
+SSL-BL	black	https://sslbl.abuse.ch/blacklist/sslipblacklist.csv	/etc/unbound/ssl-blacklist.list	86400	@IP
 
-#SA-BlackList	black	http://www.sa-blacklist.stearns.org/sa-blacklist/sa-blacklist.current.domains	/etc/unbound/sa-blacklist.list	86400	@DOMAIN
+SA-BlackList	black	http://www.sa-blacklist.stearns.org/sa-blacklist/sa-blacklist.current.domains	/etc/unbound/sa-blacklist.list	86400	@DOMAIN
 
-OpenPhish	black	https://openphish.com/feed.txt	/etc/unbound/openphish.list	86400	@URL
+#OpenPhish	black	https://openphish.com/feed.txt	/etc/unbound/openphish.list	86400	@URL
 
-PhishTank	black	http://data.phishtank.com/data/online-valid.csv	/etc/unbound/phishtank.list	86400	@URLCSV2
+#PhishTank	black	http://data.phishtank.com/data/online-valid.csv	/etc/unbound/phishtank.list	86400	@URLCSV2
 
 Blacklist.DE	black	https://lists.blocklist.de/lists/all.txt	/etc/unbound/blocklist.de.list	86400	@IP
 Blacklist.DE-Strong	black	https://lists.blocklist.de/lists/strongips.txt	/etc/unbound/blocklist.de-strong.list	86400	@IP
 
-Bogon4	black	https://www.team-cymru.org/Services/Bogons/fullbogons-ipv4.txt	/etc/unbound/bogon4.list	86400	@IP
-Bogon6	black	https://www.team-cymru.org/Services/Bogons/fullbogons-ipv6.txt	/etc/unbound/bogon6.list	86400	@IP
+#Bogon4	black	https://www.team-cymru.org/Services/Bogons/fullbogons-ipv4.txt	/etc/unbound/bogon4.list	86400	@IP
+#Bogon6	black	https://www.team-cymru.org/Services/Bogons/fullbogons-ipv6.txt	/etc/unbound/bogon6.list	86400	@IP
