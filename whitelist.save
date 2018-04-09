@@ -1,15 +1,4 @@
 ### WHITELIST REGEXES ###
-/^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Chris-Regex-White
-/^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Chris-Regex-White
-/^(imap|pop|smtp)\.gmail\.com$/	Chris-Regex-White
-/^(.*\.)*((?!font[s]*).)*\.googleapis\.com$/	Chris-Regex-White
-/^(.*\.)*gvt[0-9]\.com$/	Chris-Regex-White
-/^(.*\.)*googleusercontent\.com$/	Chris-Regex-White
-/^(.*\.)*(apple|icloud|itunes)\.com$/	Chris-Regex-White
-/^(.*\.)*(apple|icloud|itunes)\.com\.(.*\.)*(edgekey|akadns)\.net$/	Chris-Regex-White
-/^(.*\.)*(apple|icloud|itunes)(-content)*\.com$/	Chris-Regex-White
-/^(.*\.)*itunes(essentials|festivals|match|su)\.com$/	Chris-Regex-White
-/^account\..*$/	Chris-Regex-White
 ### WHITELIST DOMAINS ###
 internetbank.armbusinessbank.am	Adguard-Banks
 money.idram.am	Adguard-Banks
@@ -184,6 +173,7 @@ anveo.com	Chris-White
 anz.com	Adguard-Banks
 apc.com	Chris-White
 apcc.com	Chris-White
+apple.com	Chris-White
 apsiyon.com	Adguard-Banks
 secure5.arcot.com	Adguard-Banks
 ads.askgamblers.com	FanBoy-Complete-White
@@ -350,9 +340,15 @@ githubusercontent.com	Chris-White, FanBoy-Complete-White
 gmail.com	Chris-White
 go.com	Chris-White
 android.clients.google.com	Adguard-Android
+firestore.clients6.google.com	Adguard-Issues
 ssh.cloud.google.com	Adguard-Issues
+accountsettingsmobile-pa.googleapis.com	Adguard-Android
+androidpay-users-pa.googleapis.com	Adguard-Banks
+androidwearcloudsync-pa.googleapis.com	Adguard-Android
+trips-pa.googleapis.com	Adguard-Android
 googlecode.com	Chris-White
 googlecommerce.com	FanBoy-Complete-White
+googleusercontent.com	Chris-White, Adguard-Android
 googlevideo.com	Adguard-Android
 3dsecure.gpwebpay.com	Adguard-Banks
 grabtaxi.com	Adguard-Android
@@ -375,6 +371,8 @@ hubank.com	Adguard-Banks
 hubspot.com	Chris-White
 huntington.com	Adguard-Banks
 icicibank.com	Adguard-Banks
+icloud.com	Chris-White, Adguard-Issues
+icloud-content.com	Chris-White
 icon25-bank.com	Adguard-Banks
 idbi.com	Adguard-Banks
 idbibank.com	Adguard-Banks
@@ -580,6 +578,7 @@ static.siteheart.com	Adguard-Banks
 affiliate.skiamade.com	FanBoy-Complete-White
 api-merchants.skimlinks.com	FanBoy-Complete-White
 authentication-api.skimlinks.com	FanBoy-Complete-White
+account.skrill.com	Adguard-Banks
 pay.skrill.com	Adguard-Banks
 skype.com	Chris-White
 slack.com	Chris-White
@@ -2268,10 +2267,13 @@ mybsn.com.my	Adguard-Banks
 sospc.name	EasyList-French-White
 triolan.name	Adguard-Issues
 apple-support.akadns.net	Chris-White
+apple.com.akadns.net	Chris-White
 blobstore-apple.com.akadns.net	Chris-White
 cdn-apple.com.akadns.net	Chris-White
 gc-apple.com.akadns.net	Chris-White
+icloud.com.akadns.net	Chris-White
 itunes-apple.com.akadns.net	Chris-White
+apple.com.edgekey.net.globalredir.akadns.net	Chris-White
 sonos.com.edgekey.net.globalredir.akadns.net	Chris-White
 apple-dns.net	Chris-White
 bro-tracker.atlassian.net	Chris-White
@@ -2294,6 +2296,8 @@ dpfilms.net	EasyList-French-White
 dpseries.net	EasyList-French-White
 dropbox.net	Chris-White
 p13.dynect.net	Chris-White
+apple.com.edgekey.net	Chris-White
+icloud.com.edgekey.net	Chris-White
 sonos.com.edgekey.net	Chris-White
 emergingthreats.net	Chris-White
 global.ssl.fastly.net	Adguard-Android
@@ -2990,6 +2994,7 @@ online.tkbbank.ru	Adguard-Banks
 transcredit.ru	Adguard-Banks
 online.transstroybank.ru	Adguard-Banks
 trust.ru	Adguard-Banks
+account.ubank.ru	Adguard-Banks
 ubrr.ru	Adguard-Banks
 udengi.ru	Adguard-Banks
 umbank.ru	Adguard-Banks
@@ -3270,9 +3275,6 @@ nedbank.co.za	Adguard-Banks
 standardbank.co.za	Adguard-Banks
 hosts.ubuntu101.co.za	Chris-White
 ### WHITELIST ASN ###
-AS10782	Chris-White-ASN
-AS16625	Chris-White-ASN
-AS20940	Chris-White-ASN
 ### WHITELIST IPv4 ###
 1.0.0.1/32	Chris-White
 1.1.1.1/32	Chris-White
