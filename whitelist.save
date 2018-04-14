@@ -1,3 +1,6 @@
+### SAFELIST DOMAINS ###
+goog!	Safelist
+ntp.org!	Safelist
 ### WHITELIST REGEXES ###
 /^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Chris-Regex-White
 /^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Chris-Regex-White
@@ -11,20 +14,35 @@
 /^(.*\.)*itunes(essentials|festivals|match|su)\.com$/	Chris-Regex-White
 /^account\..*$/	Chris-Regex-White
 ### WHITELIST DOMAINS ###
-screenshot3.bid	EasyList-White
-adserver.bworldonline.com	EasyList-White
-sprites.pornxs.com	EasyList-White
-track2.royalmail.com	EasyPrivacy-White
-oas.theguardian.com	EasyList-White
-adserver.tvcatchup.com	EasyList-White
-adverts.cdn.tvcatchup.com	EasyList-White
-banners.wunderground.com	EasyList-White
-ads.memo2.nl	EasyList-White
-advertising.scoop.co.nz	EasyList-White
-metrics.torproject.org	EasyPrivacy-White
-tvn.adocean.pl	EasyList-White
-banners.gametracker.rs	EasyList-White
+free.fr	Chris-White
+lnkd.in	Chris-White
+dnsdb.info	Chris-White
+local	Chris-White
+bro-tracker.atlassian.net	Chris-White
+nbcume.sc.omtrdc.net	Chris-White
+bankofamerica.tt.omtrdc.net	Chris-White
+ad.nl	Chris-White
+tracker.bro.org	Chris-White
+gotcha.pw	Chris-White
 ### WHITELIST ASN ###
+AS10782	Chris-White-ASN
+AS16625	Chris-White-ASN
+AS20940	Chris-White-ASN
+AS26101	Chris-White-ASN
 ### WHITELIST IPv4 ###
+1.0.0.1/32	Chris-White
+1.1.1.1/32	Chris-White
+8.8.4.4/32	Chris-White
+8.8.8.8/32	Chris-White
+9.9.9.9/32	Chris-White
+149.112.112.112/32	Chris-White
+176.103.130.130/32	Chris-White
+176.103.130.131/32	Chris-White
+176.103.130.132/32	Chris-White
+176.103.130.134/32	Chris-White
+192.30.253.112/31	Chris-White
+192.168.1.0/24	Chris-White
+192.168.100.0/25	Chris-White
+213.230.210.230/32	Chris-White
 ### WHITELIST IPv6 ###
 ### WHITELIST EOF ###
