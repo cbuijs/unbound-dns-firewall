@@ -2,8 +2,7 @@
 goog!	Safelist
 ntp.org!	Safelist
 ### WHITELIST REGEXES ###
-/^(.*\.)*((my)*account|admin|api[s]*|calendar|clients[0-9]+|consent|encrypted|imap|mail|[m]*talk|notifications|ogs|payments|play|pop|santatracker|smtp|time|wallet|www)(\.l)*\.google\.com$/	Chris-Regex-White
-/^(.*\.)*(gmail-(imap|pop|smtp-msa)|googlemail|www[0-9]*)(\.l)*\.google\.com/	Chris-Regex-White
+/^(.*\.)*((?!(ad|adservice|adword|analytic|gg|googleadapi|google[-]*analytics|gstaticadssl|id|pagead|pagead[-]*googlehosted|partnerad|tagmanager|video[-]*stat|www[-]*google[-]*analytic|www[-]*googletagmanager)[s]*).*)\.google\.com$/	Chris-Regex-White
 /^(imap|pop|smtp)\.gmail\.com$/	Chris-Regex-White
 /^(.*\.)*((?!font[s]*).)*\.googleapis\.com$/	Chris-Regex-White
 /^(.*\.)*gvt[0-9]\.com$/	Chris-Regex-White
@@ -160,7 +159,7 @@ free.fr	Chris-White
 lepoint.fr	Chris-White
 ftp.ut-capitole.fr	Chris-White
 goo.gl	Chris-White
-goog	Safelist, Chris-White
+goog	Chris-White
 void.gr	Chris-White
 lnkd.in	Chris-White
 dnsdb.info	Chris-White
@@ -230,7 +229,7 @@ winhelp2002.mvps.org	Chris-White
 networksec.org	Chris-White
 notabug.org	Chris-White
 nothink.org	Chris-White
-ntp.org	Safelist, Chris-White
+ntp.org	Chris-White
 pelco.org	Chris-White
 projecthoneypot.org	Chris-White
 sans.org	Chris-White
@@ -255,6 +254,10 @@ france.tv	Chris-White
 squidguard.mesd.k12.or.us	Chris-White
 hosts.ubuntu101.co.za	Chris-White
 ### WHITELIST ASN ###
+AS10782	Chris-White-ASN
+AS16625	Chris-White-ASN
+AS20940	Chris-White-ASN
+AS26101	Chris-White-ASN
 ### WHITELIST IPv4 ###
 1.0.0.1/32	Chris-White
 1.1.1.1/32	Chris-White
