@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 =========================================================================================
- dns-firewall.py: v6.98-20180411 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
+ dns-firewall.py: v6.110-20180417 Copyright (C) 2018 Chris Buijs <cbuijs@chrisbuijs.com>
 =========================================================================================
 
 DNS filtering extension for the unbound DNS resolver.
@@ -52,7 +52,6 @@ Install and configure:
 
 TODO:
 
-- !!! Simplification of IPv4/IPv6 lists and get rid of consolidated list
 - !!! Better Documentation / Remarks / Comments
 
 =========================================================================================
@@ -90,6 +89,9 @@ from cachetools import TTLCache
 # Use cymruwhois for SafeDNS ASN lookups
 from cymruwhois import Client
 
+# Use IPSet from IPy to aggregate
+from IPy import IP, IPSet
+
 ##########################################################################################
 
 # Variables/Dictionaries/Etc ...
@@ -112,6 +114,7 @@ intercept_host = 'sinkhole.'
 
 # Lists file to configure which lists to use, one list per line, syntax:
 # <Identifier>,<black|white>,<filename|url>[,savefile[,maxlistage[,regex]]]
+#lists = False
 lists = '/etc/unbound/dns-firewall.lists'
 
 # Lists
@@ -126,16 +129,15 @@ rwhitelist = dict() # Regex whitelist (maybe replace with set()?)
 excludelist = dict() # Domain excludelist
 asnwhitelist = dict() # ASN Whitelist
 asnblacklist = dict() # ASN Blacklist
-safelist = dict() # Safe listm anything is this list will not be touched
+safeblacklist = dict() # Safe listm anything is this list will not be touched
+safewhitelist = dict() # Safe listm anything is this list will not be touched
 
 # Cache
-cachesize = 5000
-cachettl = 1800
-#blackcache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
-#whitecache = ExpiringDict(max_len=cachesize, max_age_seconds=cachettl)
+cachesize = 4096 # Entries
+cachettl = 1800 # Seconds
 blackcache = TTLCache(cachesize, cachettl)
 whitecache = TTLCache(cachesize, cachettl)
-asnscorecache = TTLCache(cachesize, cachettl * 10)
+asnscorecache = TTLCache(cachesize, cachettl * 8)
 asncache4 = pytricia.PyTricia(32)
 asncache6 = pytricia.PyTricia(128)
 cachefile = '/etc/unbound/cache.file'
@@ -150,8 +152,8 @@ fileregex = dict()
 fileregexlist = '/etc/unbound/listregexes'
 
 # TLD file
-tldfile = False
-#tldfile = '/etc/unbound/tlds.list'
+#tldfile = False
+tldfile = '/etc/unbound/tlds.list'
 tldlist = dict()
 
 # Forcing blacklist, use with caution
@@ -159,6 +161,9 @@ disablewhitelist = False
 
 # Filtering on/off
 filtering = True
+
+# Unwhitelist domains, keep in mind this can remve whitelisted entries that are blocked by IP.
+unwhitelist = False
 
 # Keep state/lock on commands
 command_in_progress = False
@@ -199,7 +204,7 @@ autoreverse = True
 autowhitelist = False # !!! Leave False
 
 # Block IPv6 queries/responses
-blockv6 = True
+blockv6 = False
 
 # CNAME Collapsing (note: whitelisted entries are not collapsed)
 collapse = True
@@ -209,6 +214,9 @@ rfc2606 = False
 
 # Allow common intranet TLD's
 intranet = False
+
+# Aggregate IP lists, can be slow on large list (more then 5000 entries)
+aggregate = True # if false, only child subnets will be removed
 
 # Default maximum age of downloaded lists, can be overruled in lists file
 maxlistage = 43200 # In seconds
@@ -223,10 +231,10 @@ debug = 2
 defaultfregex = '^(?P<line>.*)$'
 
 # Regex to match IPv4/IPv6 Addresses/Subnets (CIDR)
-#ip4regex = '((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(/(3[0-2]|[12]?[0-9]))*'
-#ip6regex = '(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))(/([0-9]|[1-8][0-9]|9[0-9]|1[01][0-9]|12[0-8]))'
-#ipregex = regex.compile('^(' + ip4regex + '|' + ip6regex +')', regex.I)
-ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
+ip4regex = '((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(/(3[0-2]|[12]?[0-9]))*)'
+ip6regex = '(((:(:[0-9a-f]{1,4}){1,7}|::|[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){1,6}|::|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){1,5}|::|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){1,4}|::|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){1,3}|::|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){1,2}|::|:[0-9a-f]{1,4}(::[0-9a-f]{1,4}|::|:[0-9a-f]{1,4}(::|:[0-9a-f]{1,4}))))))))|(:(:[0-9a-f]{1,4}){0,5}|[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){0,4}|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){0,3}|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4}){0,2}|:[0-9a-f]{1,4}(:(:[0-9a-f]{1,4})?|:[0-9a-f]{1,4}(:|:[0-9a-f]{1,4})))))):(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3})(/(12[0-8]|1[01][0-9]|[1-9]?[0-9]))*)'
+ipregex = regex.compile('^(' + ip4regex + '|' + ip6regex +')$', regex.I)
+#ipregex = regex.compile('^(([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})*|([0-9a-f]{1,4}|:)(:([0-9a-f]{0,4})){1,7}(/[0-9]{1,3})*)$', regex.I)
 
 # Regex to match regex-entries in lists
 isregex = regex.compile('^/.*/$')
@@ -251,8 +259,8 @@ exclude = regex.compile(defaultexclude, regex.I)
 # SafeDNS - HIGHLY EXPERIMENTAL AND WILL BREAK STUFF, USE AT OWN RISK !!!
 # Based on idea/code of NavyTitanium: https://github.com/NavyTitanium/Dns-online-filter
 safedns = True
-safednsblock = True # When False, only monitoring/reporting
-safescore = 60 # (percentage), start blocking when score is below this
+safednsblock = False # When False, only monitoring/reporting
+safescore = 50 # (percentage), start blocking when score is below this
 nameservers = dict()
 nameserverslist = '/etc/unbound/safenameservers'
 #ipasnfile = False # When False, whois will be used solely to lookup ASN's
@@ -370,7 +378,7 @@ def add_to_cache(bw, name):
     else:
         addarpa = False
 
-    if (bw == 'black'):
+    if (bw == 'black') and name not in blackcache:
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to black-cache')
        blackcache[name] = True
        whitecache.pop(name, False)
@@ -380,7 +388,7 @@ def add_to_cache(bw, name):
            blackcache[addarpa] = True
            whitecache.pop(addarpa, False)
 
-    else:
+    elif name not in whitecache:
        if (debug >= 2): log_info(tag + 'Added \"' + name + '\" to white-cache')
        whitecache[name] = True
        blackcache.pop(name, False)
@@ -550,6 +558,9 @@ def load_lists(force, savelists):
     global excludelist
     global exclude
     
+    if lists == False:
+        return True
+
     # Header/User-Agent to use when downloading lists, some sites block non-browser downloads
     headers = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36' }
 
@@ -635,13 +646,13 @@ def load_lists(force, savelists):
         age = file_exist(whitesave)
         if age and age < maxlistage and not disablewhitelist:
             log_info(tag + 'Using White-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist4, cwhitelist6, whitelist, asnwhitelist, True, 'white')
+            read_lists('saved-whitelist', whitesave, rwhitelist, cwhitelist4, cwhitelist6, whitelist, asnwhitelist, safewhitelist, True, 'white')
             readwhite = False
 
         age = file_exist(blacksave)
         if age and age < maxlistage:
             log_info(tag + 'Using Black-Savelist, not expired yet (' + str(age) + '/' + str(maxlistage) + ')')
-            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist4, cblacklist6, blacklist, asnblacklist, True, 'black')
+            read_lists('saved-blacklist', blacksave, rblacklist, cblacklist4, cblacklist6, blacklist, asnblacklist, safeblacklist, True, 'black')
             readblack = False
 
     addtoblack = dict()
@@ -792,10 +803,10 @@ def load_lists(force, savelists):
 
                             if file_exist(listfile) >= 0:
                                 if bw == 'black':
-                                    read_lists(id, listfile, rblacklist, cblacklist4, cblacklist6, blacklist, asnblacklist, force, bw)
+                                    read_lists(id, listfile, rblacklist, cblacklist4, cblacklist6, blacklist, asnblacklist, safeblacklist, force, bw)
                                 elif bw == 'white':
                                     if not disablewhitelist:
-                                        read_lists(id, listfile, rwhitelist, cwhitelist4, cblacklist6, whitelist, asnwhitelist, force, bw)
+                                        read_lists(id, listfile, rwhitelist, cwhitelist4, cblacklist6, whitelist, asnwhitelist, safewhitelist, force, bw)
                                 elif bw == 'exclude':
                                     excount = 0
                                     try:
@@ -853,23 +864,27 @@ def load_lists(force, savelists):
     # Optimize/Aggregate white domain lists (remove sub-domains is parent exists and entries matchin regex)
     if readwhite:
         whitelist = optimize_domlists(whitelist, 'WhiteDoms')
-        whitelist = unreg_lists(whitelist, rwhitelist, 'WhiteDoms')
         cwhitelist4 = aggregate_ip(cwhitelist4, 'WhiteIP4s')
         cwhitelist6 = aggregate_ip(cwhitelist6, 'WhiteIP6s')
+        write_out('/etc/unbound/whitelist.full', False)
+        whitelist = unreg_lists(whitelist, rwhitelist, safewhitelist, 'WhiteDoms')
 
     # Optimize/Aggregate black domain lists (remove sub-domains is parent exists and entries matchin regex)
     if readblack:
         blacklist = optimize_domlists(blacklist, 'BlackDoms')
-        blacklist = unreg_lists(blacklist, rblacklist, 'BlackDoms')
         cblacklist4 = aggregate_ip(cblacklist4, 'BlackIP4s')
         cblacklist6 = aggregate_ip(cblacklist6, 'BlackIP6s')
+        write_out(False, '/etc/unbound/blacklist.full')
+        blacklist = unreg_lists(blacklist, rblacklist, safeblacklist, 'BlackDoms')
 
     # Remove whitelisted entries from blacklist
     if readblack or readwhite:
-        blacklist = uncomplicate_lists(whitelist, rwhitelist, blacklist)
+        blacklist = uncomplicate_lists(whitelist, rwhitelist, blacklist, safeblacklist)
         cblacklist4 = uncomplicate_ip_lists(cwhitelist4, cblacklist4, 'IPv4')
         cblacklist6 = uncomplicate_ip_lists(cwhitelist6, cblacklist6, 'IPv6')
         whitelist = unwhite_domain(whitelist, blacklist)
+        cwhitelist4 = unwhite_ip(cwhitelist4, cblacklist4)
+        cwhitelist6 = unwhite_ip(cwhitelist6, cblacklist6)
 
     # Reporting
     regexcount = str(len(rwhitelist)/3)
@@ -917,7 +932,7 @@ def add_exclusion(dlist, elist, listname):
 
 
 # Read file/list
-def read_lists(id, name, regexlist, iplist4, iplist6, domainlist, asnlist, force, bw):
+def read_lists(id, name, regexlist, iplist4, iplist6, domainlist, asnlist, safelist, force, bw):
     tag = 'DNS-FIREWALL LISTS: '
 
     orgid = id
@@ -949,7 +964,6 @@ def read_lists(id, name, regexlist, iplist4, iplist6, domainlist, asnlist, force
                         if entry.endswith('!'):
                             entry = entry[:-1]
                             safed = True
-                            print "SAFE", entry
 
                         total += 1
                         if (isregex.match(entry)):
@@ -994,7 +1008,7 @@ def read_lists(id, name, regexlist, iplist4, iplist6, domainlist, asnlist, force
                                 #    domain = '.'.join(domain.split('.')[1:])
 
                                 if domain:
-                                    if tldlist and not force:
+                                    if tldlist and (not force) and (not safed):
                                         tld = domain.split('.')[-1:][0]
                                         if not tld in tldlist:
                                             if (debug >= 2): log_info(tag + 'Skipped DOMAIN \"' + domain + '\", TLD (' + tld + ') does not exist')
@@ -1106,7 +1120,7 @@ def flush_dns_cache(domain):
 # Generate response DNS message
 def generate_response(qstate, rname, rtype, rrtype, newttl):
     if blockv6 and ((rtype == 'AAAA') or rname.endswith('.ip6.arpa')):
-        if (debug >= 3): log_info(tag + 'GR: HIT on IPv6 for \"' + rname + '\" (RR:' + rtype + ')')
+        if (debug >= 3): log_info(tag + 'RESPONSE: HIT on IPv6 for \"' + rname + '\" (RR:' + rtype + ')')
         return False
 
     if (len(intercept_address) > 0 and len(intercept_host) > 0) and (rtype in ('A', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT', 'ANY')):
@@ -1192,8 +1206,35 @@ def optimize_domlists(name, listname):
     return new
 
 
+# Unwhitelist IP's, if whitelist entry is not blacklisted, remove it.
+def unwhite_ip(wlist,blist):
+    if not unwhitelist:
+        return wlist
+
+    tag = "DNS-FIREWALL LISTS: "
+    # !!! TODO, placeholder
+    return wlist
+
+
+# Check if name exist in domain-list or is sub-domain in domain-list
+def dom_find(name, dlist):
+    testname = name
+    while True:
+        if testname in dlist:
+            return testname
+        elif testname.find('.') == -1:
+            return False
+        else:
+            testname = testname[testname.find('.') + 1:]
+
+    return False
+
+
 # Unwhitelist domains, if whitelist entry is not blacklisted, remove it.
 def unwhite_domain(wlist, blist):
+    if not unwhitelist:
+        return wlist
+
     tag = "DNS-FIREWALL LISTS: "
     if (debug >= 2): log_info(tag + 'Un-Whitelisting domains from whitelist')
 
@@ -1205,7 +1246,7 @@ def unwhite_domain(wlist, blist):
         nomatchtld = True
 
         while True:
-            if testname in safelist:
+            if dom_find(testname, safewhitelist):
                 if (debug >= 2): log_info(tag + 'Skipped unwhitelisting \"' + entry + '\" due to being safelisted')
                 break
             elif testname in blist:
@@ -1238,7 +1279,7 @@ def unwhite_domain(wlist, blist):
 
 
 # Uncomplicate lists, removed whitelisted domains from blacklist
-def uncomplicate_lists(whitelist, rwhitelist, blacklist):
+def uncomplicate_lists(whitelist, rwhitelist, blacklist, safelist):
     tag = 'DNS-FIREWALL LISTS: '
 
     log_info(tag + 'Uncomplicating Domain black/whitelists')
@@ -1258,8 +1299,11 @@ def uncomplicate_lists(whitelist, rwhitelist, blacklist):
         if '.' + domain + '#' in checklistb:
             if (debug >= 3): log_info(tag + 'Checking against \"' + domain + '\"')
             for found in filter(lambda x: x.endswith('.' + domain), listb):
-                if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + found + '\" due to whitelisted parent \"' + domain + '\"')
-                listb.remove(found)
+                if not dom_find(found, safelist):
+                   if (debug >= 3): log_info(tag + 'Removed blacklist-entry \"' + found + '\" due to whitelisted parent \"' + domain + '\"')
+                   listb.remove(found)
+                else:
+                   if (debug >= 3): log_info(tag + 'Preserved whitelisted/safeblacklisted blacklist-entry \"' + found + '\" due to whitelisted parent \"' + domain + '\"')
 
             checklistb = '#'.join(listb) + "#"
         #else:
@@ -1272,8 +1316,11 @@ def uncomplicate_lists(whitelist, rwhitelist, blacklist):
         checkregex = rwhitelist[i,1]
         if (debug >= 3): log_info(tag + 'Checking against white-regex \"' + rwhitelist[i,2] + '\"')
         for found in filter(checkregex.search, listb):
-            listb.remove(found)
-            if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
+            if not dom_find(found, safelist):
+                listb.remove(found)
+                if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
+            else:
+                if (debug >= 3): log_info(tag + 'Preserved safeblacklisted \"' + found + '\" from blacklist, matched by white-regex \"' + rwhitelist[i,2] + '\"')
 
     # New/Work dictionary
     new = dict()
@@ -1361,7 +1408,7 @@ def uncomplicate_ip_lists(cwhitelist, cblacklist, listname):
 
 
 # Remove entries from domains already matching by a regex
-def unreg_lists(dlist, rlist, listname):
+def unreg_lists(dlist, rlist, safelist, listname):
     tag = 'DNS-FIREWALL LISTS: '
 
     log_info(tag + 'Unregging \"' + listname + '\"')
@@ -1373,8 +1420,11 @@ def unreg_lists(dlist, rlist, listname):
         if (debug >= 3): log_info(tag + 'Checking against \"' + rlist[i,2] + '\"')
 	for found in filter(checkregex.search, dlist):
             name = dlist[found]
-            del dlist[found]
-            if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + name + '\", already matched by regex \"' + rlist[i,2] + '\"')
+            if not dom_find(name, safelist):
+                del dlist[found]
+                if (debug >= 3): log_info(tag + 'Removed \"' + found + '\" from \"' + name + '\" matched by regex \"' + rlist[i,2] + '\"')
+            else:
+                if (debug >= 3): log_info(tag + 'Preserved safelisted \"' + found + '\" from \"' + name + '\" matched by regex \"' + rlist[i,2] + '\"')
 
     after = len(dlist)
     count = after - before
@@ -1392,76 +1442,83 @@ def write_out(whitefile, blackfile):
     if not savelists:
         return False
 
-    log_info(tag + 'Saving processed lists to \"' + whitefile + '\" and \"' + blackfile + '\"')
-    try:
-        with open(whitefile, 'w') as f:
-            f.write('### WHITELIST REGEXES ###\n')
-            for line in range(0,len(rwhitelist)/3):
-                f.write('/' + rwhitelist[line,2] + '/\t' + rwhitelist[line,0])
-                f.write('\n')
+    if whitefile:
+        log_info(tag + 'Saving processed blacklists to \"' + whitefile + '\"')
+        try:
+            with open(whitefile, 'w') as f:
+                f.write('### SAFELIST DOMAINS ###\n')
+                for line in dom_sort(safewhitelist.keys()):
+                    f.write(line + '!\t' + safewhitelist[line])
+                    f.write('\n')
 
-            f.write('### WHITELIST DOMAINS ###\n')
-            for line in dom_sort(whitelist.keys()):
-                if line in safelist:
-                    f.write(line + '!\t' + whitelist[line])
-                else:
+                f.write('### WHITELIST REGEXES ###\n')
+                for line in range(0,len(rwhitelist)/3):
+                    f.write('/' + rwhitelist[line,2] + '/\t' + rwhitelist[line,0])
+                    f.write('\n')
+
+                f.write('### WHITELIST DOMAINS ###\n')
+                for line in dom_sort(whitelist.keys()):
                     f.write(line + '\t' + whitelist[line])
-                f.write('\n')
+                    f.write('\n')
 
-            f.write('### WHITELIST ASN ###\n')
-            for a in sorted(asnwhitelist.keys()):
-                f.write(a + '\t' + asnwhitelist[a])
-                f.write('\n')
+                f.write('### WHITELIST ASN ###\n')
+                for a in sorted(asnwhitelist.keys()):
+                    f.write(a + '\t' + asnwhitelist[a])
+                    f.write('\n')
 
-            f.write('### WHITELIST IPv4 ###\n')
-            for a in cwhitelist4.keys():
-                f.write(a + '\t' + cwhitelist4[a].split('(')[1].split(')')[0].strip())
-                f.write('\n')
+                f.write('### WHITELIST IPv4 ###\n')
+                for a in cwhitelist4.keys():
+                    f.write(a + '\t' + cwhitelist4[a].split('(')[1].split(')')[0].strip())
+                    f.write('\n')
 
-            f.write('### WHITELIST IPv6 ###\n')
-            for a in cwhitelist6.keys():
-                f.write(a + '\t' + cwhitelist6[a].split('(')[1].split(')')[0].strip())
-                f.write('\n')
+                f.write('### WHITELIST IPv6 ###\n')
+                for a in cwhitelist6.keys():
+                    f.write(a + '\t' + cwhitelist6[a].split('(')[1].split(')')[0].strip())
+                    f.write('\n')
 
-            f.write('### WHITELIST EOF ###\n')
+                f.write('### WHITELIST EOF ###\n')
 
-    except BaseException as err:
-        log_err(tag + 'Unable to write to file \"' + whitefile + '\" (' + str(err) + ')')
+        except BaseException as err:
+            log_err(tag + 'Unable to write to file \"' + whitefile + '\" (' + str(err) + ')')
 
-    try:
-        with open(blackfile, 'w') as f:
-            f.write('### BLACKLIST REGEXES ###\n')
-            for line in range(0,len(rblacklist)/3):
-                f.write('/' + rblacklist[line,2] + '/\t' + rblacklist[line,0])
-                f.write('\n')
+    if blackfile:
+        log_info(tag + 'Saving processed blacklists to \"' + blackfile + '\"')
+        try:
+            with open(blackfile, 'w') as f:
+                f.write('### SAFELIST DOMAINS ###\n')
+                for line in dom_sort(safeblacklist.keys()):
+                    f.write(line + '!\t' + safeblacklist[line])
+                    f.write('\n')
 
-            f.write('### BLACKLIST DOMAINS ###\n')
-            for line in dom_sort(blacklist.keys()):
-                if line in safelist:
-                    f.write(line + '!\t' + blacklist[line])
-                else:
+                f.write('### BLACKLIST REGEXES ###\n')
+                for line in range(0,len(rblacklist)/3):
+                    f.write('/' + rblacklist[line,2] + '/\t' + rblacklist[line,0])
+                    f.write('\n')
+
+                f.write('### BLACKLIST DOMAINS ###\n')
+                for line in dom_sort(blacklist.keys()):
                     f.write(line + '\t' + blacklist[line])
-                f.write('\n')
+                    f.write('\n')
 
-            f.write('### BLACKLIST ASN ###\n')
-            for a in sorted(asnblacklist.keys()):
-                f.write(a + '\t' + asnblacklist[a])
-                f.write('\n')
+                f.write('### BLACKLIST ASN ###\n')
+                for a in sorted(asnblacklist.keys()):
+                    f.write(a + '\t' + asnblacklist[a])
+                    f.write('\n')
 
-            f.write('### BLACKLIST IPv4 ###\n')
-            for a in cblacklist4.keys():
-                f.write(a + '\t' + cblacklist4[a].split('(')[1].split(')')[0].strip())
-                f.write('\n')
+                f.write('### BLACKLIST IPv4 ###\n')
+                for a in cblacklist4.keys():
+                    f.write(a + '\t' + cblacklist4[a].split('(')[1].split(')')[0].strip())
+                    f.write('\n')
 
-            f.write('### BLACKLIST IPv6 ###\n')
-            for a in cblacklist6.keys():
-                f.write(a + '\t' + cblacklist6[a].split('(')[1].split(')')[0].strip())
-                f.write('\n')
+                f.write('### BLACKLIST IPv6 ###\n')
+                for a in cblacklist6.keys():
+                    f.write(a + '\t' + cblacklist6[a].split('(')[1].split(')')[0].strip())
+                    f.write('\n')
 
-            f.write('### BLACKLIST EOF ###\n')
+                f.write('### BLACKLIST EOF ###\n')
 
-    except BaseException as err:
-        log_err(tag + 'Unable to write to file \"' + blackfile + '\" (' + str(err) + ')')
+        except BaseException as err:
+            log_err(tag + 'Unable to write to file \"' + blackfile + '\" (' + str(err) + ')')
 
     return True
 
@@ -1475,8 +1532,7 @@ def dom_sort(domlist):
     return newdomlist
 
 
-# Rudimentary Aggregate IP list, just consolidates subnets if parent exists
-# !!! It does not "merge" subnets with same size into a new parent, TODO !!!
+# Aggregate IP list
 def aggregate_ip(iplist, listname):
     tag = 'DNS-FIREWALL LISTS: '
 
@@ -1489,7 +1545,7 @@ def aggregate_ip(iplist, listname):
     else:
         dictsize = 32
 
-    # !!! Only removes child-subnets, does not aggregate !!!
+    # !!! Phase 1 - Only removes child-subnets, does not aggregate !!!
     for ip in iplist.keys():
         bitmask = ip.split('/')[1]
         if not bitmask in ('32', '128'):
@@ -1498,6 +1554,7 @@ def aggregate_ip(iplist, listname):
                 if children:
                    for child in children:
                         if child in undupped:
+                            print "CHILD:", child, ip
                             undupped.remove(child)
                             if (debug >= 3): log_info(tag + 'Removed ' + child + ', already covered by ' + ip + ' in \"' + iplist[ip] + '\"')
 
@@ -1506,8 +1563,25 @@ def aggregate_ip(iplist, listname):
                 pass
 
     new = pytricia.PyTricia(dictsize)
-    for ip in undupped:
-        new[ip] = iplist[ip]
+
+    if aggregate:
+        ipundupped = list()
+        for ip in undupped:
+             ipundupped.append(IP(ip))
+
+        ipset = IPSet(ipundupped) # Here is the magic
+
+        for ip in ipset:
+            ip = ip.strNormal(1)
+
+            if ip in iplist:
+                new[ip] = iplist[ip]
+            else:
+                new[ip] = '\"' + ip + '\" (Aggregated)'
+
+    else:
+        for ip in undupped:
+            new[ip] = iplist[ip]
 
     before = len(iplist)
     after = len(new)
@@ -1552,7 +1626,7 @@ def init(id, cfg):
     global excludelist
     global safedns
 
-    log_info(tag + 'Initializing')
+    log_info(tag + '######## DNS-FIREWALL Initializing ########')
 
     # Read Lists
     load_lists(False, savelists)
@@ -1603,6 +1677,9 @@ def init(id, cfg):
 
             except BaseException as err:
                 log_err(tag + 'Unable to open file \"' + ipasnfile + '\": ' + str(err))
+        else:
+            if (debug >= 1): log_info(tag + 'No IP-ASN database to load, using WHOIS for SafeDNS/ASN lookups')
+     
 
     if len(intercept_address) == 0:
         if (debug >= 1): log_info(tag + 'Using REFUSED for matched queries/responses')
@@ -1793,21 +1870,21 @@ def get_asn(ip):
         asn = lookup.asn
         prefix = False
 
-        if asn:
+        if asn and asn != '' and asn != 'NA':
             prefix = lookup.prefix
             asn = 'AS' + str(asn)
         else:
-            baseasn = 'AS-NONE'
+            asn = 'AS-NONE'
 
-        if prefix:
+        if asn and prefix and ipregex.match(prefix):
             if prefix.find(':') == -1:
                 asncache4[prefix] = asn
             else:
                 asncache6[prefix] = asn
         else:
-            prefix = 'NULL'
+            prefix = 'NO-PREFIX'
 
-        if (debug >= 2): log_info(tag + 'Got ASN \"' + asn + '\" from WHOIS for ' + ip + '(' + prefix + ')')
+        if (debug >= 2): log_info(tag + 'Got ASN \"' + asn + '\" from WHOIS for ' + ip + ' (Prefix: ' + prefix + ')')
     else:
         if (debug >= 2): log_info(tag + 'Got ASN \"' + asn + '\" from CACHE/DATABASE for ' + ip)
 
@@ -1822,16 +1899,32 @@ def safe_dns(query, qname, type, baseip):
     tag = 'DNS-FIREWALL SAFEDNS: '
 
     # Check if we already have a score, if so return it
-    if qname in asnscorecache:
+    if qname in asnscorecache or query in asnscorecache:
         score = asnscorecache[qname]
         if (debug >= 2): log_info(tag + 'Found cached \"' + qname + '\" score (' + str(score) + '%%)') 
         return score
 
+    # Check if whitelisted
+    if dom_find(qname, whitelist) or dom_find(query, whitelist) or check_ip(baseip, 'white'):
+        score = 100
+        if (debug >= 2): log_info(tag + 'Found whitelisted ' + qname + '/' + baseip + ' score (' + str(score) + '%%)') 
+        asnscorecache[qname] = score
+        return score
+
+    # Check if blacklisted
+    if dom_find(qname, blacklist) or dom_find(query, blacklist) or check_ip(baseip, 'black'):
+        score = 0
+        if (debug >= 2): log_info(tag + 'Found blacklisted ' + qname + '/' + baseip + ' score (' + str(score) + '%%)') 
+        asnscorecache[qname] = score
+        return score
+
     score = False
+    blockit = False
     baseasn = False
 
     # Check if we have ASN Prefix for baseip
-    if (debug >= 2): log_info(tag + 'Checking ' + qname + '/' + baseip + ' against DEFAULT')
+    if (debug >= 2): log_info(tag + 'Checking ' + qname + ' against DEFAULT')
+    if (debug >= 2): log_info(tag + 'DEFAULT returned ' + qname + ' = ' + baseip) 
     baseasn = get_asn(baseip)
 
     # ASN Black/whitelisted? Score accordingly and break
@@ -1840,6 +1933,7 @@ def safe_dns(query, qname, type, baseip):
         score = 100
     elif baseasn in asnblacklist:
         if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" BASE-ASN: \"' + baseasn + '\" (' + asnblacklist[baseasn] + ')') 
+	blockit = True
         score = 0
 
     if (debug >= 2): log_info(tag + 'DEFAULT: ' + qname + '/' + baseip + ' belongs to ASN: \"' + baseasn + '\"')
@@ -1856,8 +1950,8 @@ def safe_dns(query, qname, type, baseip):
     resolver.timeout = 0.75
 
     # Query nameservers, get ASN and compare
-    if not score:
-        for ns in nameservers.keys():
+    if not score and not blockit:
+        for ns in sorted(nameservers.keys()):
             if (debug >= 2): log_info(tag + 'Checking ' + qname + ' against ' + ns)
             nsip = nameservers[ns].split(',')
             if nsip:
@@ -1888,21 +1982,31 @@ def safe_dns(query, qname, type, baseip):
 
                 # When NXDOMAIN or NOANSWER, treat this as hits, all servers should do the same basically
                 if response in ('NXDOMAIN', 'NOANSWER'):
+                    if (debug >= 2): log_info(tag + ns + ' returned ' + qname + ' = ' + response) 
                     if response in hits:
                         hits[response] += 1
                     else:
                         hits[response] = 1
         
-                # Get ASn for response and process
+                # Get ASN for response and process
                 elif response not in ('ERROR', 'TIMEOUT'):
                     # Loop through answers (IP's)
                     for answer in response:
                         ip = str(answer.address)
-                        if ip:
+                        if ip and ipregex.match(ip):
+                            if ip == '0.0.0.0' or ip.startswith('127.0.0.'):
+                                if (debug >= 2): log_info(tag + '\"' + qname + '\" is DNS-blacklisted by ' + ns + ' (' + ip + ')') 
+                                blockit = True
+                                score = 0
+                                break
+
+                            if (debug >= 2): log_info(tag + ns + ' returned ' + qname + ' = ' + ip) 
+
                             # Get ASN
                             asn = get_asn(ip)
 
                             if (debug >= 2): log_info(tag + ns + ': ' + qname + '/' + ip + ' belongs to ASN: \"' + asn + '\"') 
+
                             # ASN Black/whitelisted? Score accordingly and break
                             if asn in asnwhitelist:
                                 if (debug >= 2): log_info(tag + 'Found whitelisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnwhitelist[asn] + ')') 
@@ -1911,6 +2015,7 @@ def safe_dns(query, qname, type, baseip):
                             elif asn in asnblacklist:
                                 if (debug >= 2): log_info(tag + 'Found blacklisted \"' + qname + '\" ASN: \"' + asn + '\" (' + asnblacklist[asn] + ')') 
                                 score = 0
+                                blockit = True
                                 break
 
                             # Update hits
@@ -1918,9 +2023,15 @@ def safe_dns(query, qname, type, baseip):
                                 hits[asn] += 1
                             else:
                                 hits[asn] = 1
+
+            if blockit:
+                break
    
         # Process score/hits
-        if not score:
+        if blockit:
+            if (debug >= 2): log_info(tag + '\"' + qname + '\" score: ' + str(score) + '%%')
+            score = 0
+        elif not score:
             if hits:
                 # Get ASN with most hits and make that the base ASN
                 baseasn = max(hits, key=hits.get)
@@ -1932,16 +2043,18 @@ def safe_dns(query, qname, type, baseip):
                 # calculate score
                 if count < total:
                     score = int('{0:.0f}'.format((float(count) / float(total) * 100)))
-                    if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN \"' + baseasn + '\" score: ' + str(score) + '%%')
                 else:
                     score = 100
             else:
                 score = 100
 
+            if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN \"' + baseasn + '\" score: ' + str(score) + '%%')
+
 
     # Catch all if everything fails. Use 0 to block to enfore and rely on stable access, use 100 to pass anyway
-    if not score:
+    if not score and not blockit:
         score = 100
+        if (debug >= 2): log_info(tag + '\"' + qname + '\" Base-ASN \"' + baseasn + '\" CATCH-ALL score: ' + str(score) + '%%')
 
     # Update cache
     asnscorecache[qname] = score
@@ -2131,6 +2244,8 @@ def operate(id, event, qstate, qdata):
                                                                         break
                                                                     else:
                                                                         if (debug >= 1): log_info(tag + 'SafeDNS HIT on \"' + dname + '\", score below '+ str(safescore) + '%%, MONITORING!')
+
+                                                                add_to_cache('white', dname) # !!! Need to check impact
 
                                                                 if (debug >= 2): log_info(tag + 'Finished SafeDNS-Check on \"' + dname + '\"')
 
