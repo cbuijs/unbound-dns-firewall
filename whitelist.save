@@ -159,7 +159,7 @@ free.fr	Chris-White
 lepoint.fr	Chris-White
 ftp.ut-capitole.fr	Chris-White
 goo.gl	Chris-White
-goog	Safelist, Safelist, Chris-White
+goog	Safelist, Chris-White
 void.gr	Chris-White
 lnkd.in	Chris-White
 dnsdb.info	Chris-White
@@ -229,7 +229,7 @@ winhelp2002.mvps.org	Chris-White
 networksec.org	Chris-White
 notabug.org	Chris-White
 nothink.org	Chris-White
-ntp.org	Safelist, Safelist, Chris-White
+ntp.org	Safelist, Chris-White
 pelco.org	Chris-White
 projecthoneypot.org	Chris-White
 sans.org	Chris-White
@@ -265,8 +265,7 @@ AS26101	Chris-White-ASN
 8.8.8.8/32	Chris-White
 9.9.9.9/32	Chris-White
 149.112.112.112/32	Chris-White
-176.103.130.130/32	Chris-White
-176.103.130.131/32	Chris-White
+176.103.130.130/31	Aggregated
 176.103.130.132/32	Chris-White
 176.103.130.134/32	Chris-White
 192.30.253.112/31	Chris-White
