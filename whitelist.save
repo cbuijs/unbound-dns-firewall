@@ -48,6 +48,7 @@ e2ro.com&	Unwhitelist
 eero.com&	Unwhitelist
 evite.com&	Unwhitelist
 expedia.com&	Unwhitelist
+fitbit.com&	Unwhitelist
 fsecurify.com&	Unwhitelist
 fuelrewards.com&	Unwhitelist
 funniermoments.com&	Unwhitelist
@@ -251,16 +252,12 @@ ad.nl	Chris-White
 ads.memo2.nl	EasyList-White
 advertising.scoop.co.nz	EasyList-White
 tracker.bro.org	Chris-White
-ntp.org	Safelist, Safelist, Safelist, Safelist, Safelist, Chris-Exclude
+ntp.org	Safelist, Safelist, Safelist, Safelist, Safelist, Safelist, Safelist, Safelist, Safelist, Safelist, Chris-Exclude
 metrics.torproject.org	EasyPrivacy-White
 tvn.adocean.pl	EasyList-White
 gotcha.pw	Chris-White
 banners.gametracker.rs	EasyList-White
 ### WHITELIST ASN ###
-AS10782	Chris-White-ASN
-AS16625	Chris-White-ASN
-AS20940	Chris-White-ASN
-AS26101	Chris-White-ASN
 ### WHITELIST IPv4 ###
 1.0.0.1/32	Chris-White
 1.1.1.1/32	Chris-White
