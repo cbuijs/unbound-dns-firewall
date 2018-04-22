@@ -161,9 +161,9 @@ sans.edu	Chris-White
 botvrij.eu	Chris-White
 free.fr	Chris-White
 lepoint.fr	Chris-White
-ftp.ut-capitole.fr	Chris-White
+ut-capitole.fr	Chris-White
 goo.gl	Chris-White
-goog	Safelist, Chris-White
+goog	Safelist, Safelist, Safelist, Chris-White
 void.gr	Chris-White
 lnkd.in	Chris-White
 dnscrypt.info	Chris-White
@@ -235,7 +235,7 @@ winhelp2002.mvps.org	Chris-White
 networksec.org	Chris-White
 notabug.org	Chris-White
 nothink.org	Chris-White
-ntp.org	Chris-Exclude
+ntp.org	Safelist, Safelist, Chris-Exclude
 pelco.org	Chris-White
 projecthoneypot.org	Chris-White
 sans.org	Chris-White
@@ -260,10 +260,6 @@ france.tv	Chris-White
 squidguard.mesd.k12.or.us	Chris-White
 hosts.ubuntu101.co.za	Chris-White
 ### WHITELIST ASN ###
-AS10782	Chris-White-ASN
-AS16625	Chris-White-ASN
-AS20940	Chris-White-ASN
-AS26101	Chris-White-ASN
 ### WHITELIST IPv4 ###
 1.0.0.1/32	Chris-White
 1.1.1.1/32	Chris-White
