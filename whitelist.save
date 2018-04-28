@@ -1,6 +1,6 @@
 ### SAFELIST DOMAINS ###
 goog!	Safelist
-ntp.org!	Chris-Exclude
+ntp.org!	Safelist
 ### SAFEUNWHITELIST DOMAINS ###
 ### WHITELIST REGEXES ###
 /^(.*\.)*((?!(ad|adservice|adword|analytic|gg|googleadapi|google[-]*analytics|gstaticadssl|id|pagead|pagead[-]*googlehosted|partnerad|tagmanager|video[-]*stat|www[-]*google[-]*analytic|www[-]*googletagmanager)[s]*).*)\.google\.com$/	Chris-Regex-White
@@ -163,7 +163,7 @@ free.fr	Chris-White
 lepoint.fr	Chris-White
 ut-capitole.fr	Chris-White
 goo.gl	Chris-White
-goog	Chris-White
+goog	Safelist, Chris-White
 void.gr	Chris-White
 lnkd.in	Chris-White
 dnscrypt.info	Chris-White
@@ -196,6 +196,7 @@ p13.dynect.net	Chris-White
 sonos.com.edgekey.net	Chris-White
 emergingthreats.net	Chris-White
 v.firebog.net	Chris-White
+chzbgr.com.c.footprint.net	Chris-White
 adblock.gardar.net	Chris-White
 gtld-servers.net	Chris-White
 hosts-file.net	Chris-White
