@@ -163,7 +163,7 @@ free.fr	Chris-White
 lepoint.fr	Chris-White
 ut-capitole.fr	Chris-White
 goo.gl	Chris-White
-goog	Safelist, Chris-White
+goog	Safelist, Safelist, Chris-White
 void.gr	Chris-White
 lnkd.in	Chris-White
 dnscrypt.info	Chris-White
@@ -236,7 +236,7 @@ winhelp2002.mvps.org	Chris-White
 networksec.org	Chris-White
 notabug.org	Chris-White
 nothink.org	Chris-White
-ntp.org	Chris-Exclude
+ntp.org	Safelist, Chris-Exclude
 pelco.org	Chris-White
 projecthoneypot.org	Chris-White
 sans.org	Chris-White
