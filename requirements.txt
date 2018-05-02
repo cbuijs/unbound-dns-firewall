@@ -1,0 +1,7 @@
+cachetools>=2.0.1
+cymruwhois>=1.6
+dnspython>=1.15.0
+IPy>=0.83
+pytricia>=1.0.0
+regex>=2018.2.21
+requests>=2.18.4
