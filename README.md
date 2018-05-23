@@ -1,6 +1,6 @@
 # unbound-dns-firewall
 
-<b>THIS NOW IS AN ARCHIVE, WILL BE SPARSELY/NOT UPDATED!!!</b><br>
+<b>THIS IS AN ARCHIVE, WILL BE SPARSELY/NOT UPDATED!!!</b><br>
 Check <a href ="https://github.com/cbuijs/instigator">Instigator</a> and <a href="https://github.com/cbuijs/accomplist">Accomplist</a> as alternative.
 
 DNS-Firewall Python script for <a href="http://unbound.net/">UNBOUND</a>
